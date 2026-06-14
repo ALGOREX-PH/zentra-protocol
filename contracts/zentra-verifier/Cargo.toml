@@ -9,6 +9,11 @@ description = "Zentra Protocol — Soroban BN254 Groth16 proof-of-compliance ver
 crate-type = ["cdylib"]
 doctest = false
 
+[features]
+# Phase-0 only: exposes verify_spike(), an arg-free method that verifies an
+# embedded fixture proof on testnet. Excluded from production builds.
+spike-probe = []
+
 [dependencies]
 soroban-sdk = "26.1.0"
 
