@@ -9,7 +9,7 @@
 
 use soroban_sdk::{
     contract, contracterror, contractevent, contractimpl, contracttype,
-    crypto::bn254::Bn254Fr as Fr, token::Client as TokenClient, Address, BytesN, Env, Vec,
+    crypto::bn254::Bn254Fr as Fr, token::Client as TokenClient, Address, Bytes, BytesN, Env, Vec,
 };
 
 mod encoding;
@@ -158,7 +158,7 @@ impl ZentraVerifier {
         env: Env,
         agent: Address,
         policy_commitment: BytesN<32>,
-        proof: Proof,
+        proof_bytes: Bytes,
         recipient: Address,
         amount: i128,
         asset: Address,
@@ -224,6 +224,7 @@ impl ZentraVerifier {
             new_spent,
             new_action_count,
         );
+        let proof = Proof::from_bytes(&proof_bytes);
         if !groth16::verify(&env, vk::verification_key(&env), proof, pub_inputs)? {
             return Err(Error::InvalidProof);
         }
