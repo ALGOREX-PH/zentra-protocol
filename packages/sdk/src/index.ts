@@ -69,8 +69,8 @@ export class Zentra {
     this.onStatus = cfg.onStatus ?? (() => {});
   }
 
-  createPolicy(config: PolicyConfig): Promise<Policy> {
-    return createPolicy({ asset: this.asset, ...config });
+  createPolicy(config: Omit<PolicyConfig, "asset"> & { asset?: string }): Promise<Policy> {
+    return createPolicy({ ...config, asset: config.asset ?? this.asset });
   }
 
   commitPolicy(agent: Keypair, policy: Policy): Promise<ConfirmedTx> {
