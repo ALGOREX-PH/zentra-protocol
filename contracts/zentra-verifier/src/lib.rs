@@ -1,43 +1,94 @@
 #![no_std]
-//! Zentra Protocol — Soroban verifier.
+//! Zentra Protocol — Soroban proof-of-compliance verifier and settlement layer.
 //!
-//! Phase-0 spike: a BN254 Groth16 proof verifier built on the `soroban-sdk` v26
-//! BN254 host functions (CAP-0074/CAP-0080). This proves the proof↔contract
-//! serialization and the on-chain resource budget before the real
-//! policy-compliance state machine is built on top.
+//! `authorize_action` is a verifiable state machine: it verifies a Groth16/BN254
+//! proof that a proposed payment obeys a private policy, confirms the proof is
+//! bound to the agent's authoritative on-chain state (so the agent cannot lie
+//! about prior spend), enforces single-use nullifiers, then settles the USDC
+//! payment and emits a Verifiable Action Receipt. No proof, no payment.
 
 use soroban_sdk::{
-    contract, contracterror, contractimpl, contracttype,
-    crypto::bn254::{Bn254Fr as Fr, Bn254G1Affine as G1Affine, Bn254G2Affine as G2Affine},
-    vec, Env, Vec,
+    contract, contracterror, contractevent, contractimpl, contracttype,
+    crypto::bn254::Bn254Fr as Fr, token::Client as TokenClient, Address, BytesN, Env, Vec,
 };
+
+mod encoding;
+mod groth16;
+mod vk;
+
+pub use groth16::{Proof, VerificationKey};
+
+#[cfg(test)]
+mod payment_fixtures;
+#[cfg(test)]
+mod test;
+
+const DAY_TTL: u32 = 17280; // ~1 day at 5s ledgers
+const RETENTION_TTL: u32 = 518400; // ~30 days
 
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq, PartialOrd, Ord)]
 #[repr(u32)]
-pub enum VerifierError {
-    /// pub_signals length does not match (ic.len() - 1).
+pub enum Error {
     MalformedVerifyingKey = 1,
+    PolicyNotFound = 2,
+    PolicyRevoked = 3,
+    InvalidProof = 4,
+    StateMismatch = 5,
+    NullifierUsed = 6,
+    InvalidAmount = 7,
+    Overflow = 8,
 }
 
-/// Groth16 verification key (BN254). Points are in the soroban-sdk byte layout.
-#[derive(Clone)]
+/// Authoritative on-chain state per (agent, policy commitment).
 #[contracttype]
-pub struct VerificationKey {
-    pub alpha: G1Affine,
-    pub beta: G2Affine,
-    pub gamma: G2Affine,
-    pub delta: G2Affine,
-    pub ic: Vec<G1Affine>,
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AuthorityState {
+    pub epoch_id: u64,
+    pub spent_in_epoch: i128,
+    pub action_count: u64,
 }
 
-/// Groth16 proof (BN254).
-#[derive(Clone)]
 #[contracttype]
-pub struct Proof {
-    pub a: G1Affine,
-    pub b: G2Affine,
-    pub c: G1Affine,
+#[derive(Clone)]
+pub struct PolicyRecord {
+    pub recipient_root: BytesN<32>,
+    pub epoch_seconds: u64,
+    pub revoked: bool,
+}
+
+#[contracttype]
+#[derive(Clone)]
+pub enum DataKey {
+    Policy(Address, BytesN<32>),
+    Authority(Address, BytesN<32>),
+    Nullifier(BytesN<32>),
+}
+
+/// Emitted on every successful authorization. The nullifier is the unique
+/// action id. (A CAP-0075 Poseidon actionHash over these fields is a planned
+/// enhancement; the nullifier already uniquely identifies the action.)
+#[contractevent(topics = ["receipt"])]
+pub struct ActionReceipt {
+    pub agent: Address,
+    pub policy: BytesN<32>,
+    pub recipient: Address,
+    pub amount: i128,
+    pub asset: Address,
+    pub nullifier: BytesN<32>,
+    pub epoch_id: u64,
+    pub new_action_count: u64,
+}
+
+/// Effective prior AuthorityState, applying epoch rollover: entering a new epoch
+/// resets the in-epoch spend to zero while preserving the cumulative action count.
+fn effective_prior(stored: &AuthorityState, epoch_seconds: u64, now: u64) -> AuthorityState {
+    let cur = now / epoch_seconds;
+    if cur != stored.epoch_id {
+        AuthorityState { epoch_id: cur, spent_in_epoch: 0, action_count: stored.action_count }
+    } else {
+        stored.clone()
+    }
 }
 
 #[contract]
@@ -45,89 +96,166 @@ pub struct ZentraVerifier;
 
 #[contractimpl]
 impl ZentraVerifier {
-    /// Verify a Groth16 proof over BN254 against `vk` and `pub_signals`.
-    ///
-    /// Checks the pairing equation
-    ///   e(-A, B) * e(alpha, beta) * e(vk_x, gamma) * e(C, delta) == 1
-    /// where vk_x = ic[0] + sum(pub_signals[i] * ic[i+1]).
-    pub fn verify_proof(
+    /// Register (or update) a policy commitment + approved-recipient root for an agent.
+    pub fn register_policy(
         env: Env,
-        vk: VerificationKey,
+        agent: Address,
+        policy_commitment: BytesN<32>,
+        recipient_root: BytesN<32>,
+        epoch_seconds: u64,
+    ) {
+        agent.require_auth();
+        assert!(epoch_seconds > 0, "epoch_seconds must be > 0");
+
+        let pkey = DataKey::Policy(agent.clone(), policy_commitment.clone());
+        env.storage().persistent().set(
+            &pkey,
+            &PolicyRecord { recipient_root, epoch_seconds, revoked: false },
+        );
+        env.storage().persistent().extend_ttl(&pkey, DAY_TTL, RETENTION_TTL);
+
+        let akey = DataKey::Authority(agent, policy_commitment);
+        if !env.storage().persistent().has(&akey) {
+            let epoch = env.ledger().timestamp() / epoch_seconds;
+            env.storage().persistent().set(
+                &akey,
+                &AuthorityState { epoch_id: epoch, spent_in_epoch: 0, action_count: 0 },
+            );
+        }
+        env.storage().persistent().extend_ttl(&akey, DAY_TTL, RETENTION_TTL);
+    }
+
+    /// Read the stored AuthorityState for (agent, policy). Returns zeroed state if absent.
+    pub fn authority_state(env: Env, agent: Address, policy: BytesN<32>) -> AuthorityState {
+        env.storage()
+            .persistent()
+            .get(&DataKey::Authority(agent, policy))
+            .unwrap_or(AuthorityState { epoch_id: 0, spent_in_epoch: 0, action_count: 0 })
+    }
+
+    /// Revoke a policy; no further actions can be authorized under it.
+    pub fn revoke_policy(env: Env, agent: Address, policy: BytesN<32>) -> Result<(), Error> {
+        agent.require_auth();
+        let pkey = DataKey::Policy(agent, policy);
+        let mut rec: PolicyRecord =
+            env.storage().persistent().get(&pkey).ok_or(Error::PolicyNotFound)?;
+        rec.revoked = true;
+        env.storage().persistent().set(&pkey, &rec);
+        env.storage().persistent().extend_ttl(&pkey, DAY_TTL, RETENTION_TTL);
+        Ok(())
+    }
+
+    /// Verify a payment-policy Groth16 proof against the embedded verification key
+    /// and the supplied public signals (canonical order). Read-only.
+    pub fn verify_proof(env: Env, proof: Proof, pub_signals: Vec<Fr>) -> Result<bool, Error> {
+        groth16::verify(&env, vk::verification_key(&env), proof, pub_signals)
+    }
+
+    /// The core proof-gated, state-bound payment authorization.
+    /// Nothing after the state + nullifier + proof checks runs unless they pass.
+    #[allow(clippy::too_many_arguments)]
+    pub fn authorize_action(
+        env: Env,
+        agent: Address,
+        policy_commitment: BytesN<32>,
         proof: Proof,
-        pub_signals: Vec<Fr>,
-    ) -> Result<bool, VerifierError> {
-        groth16_verify(&env, vk, proof, pub_signals)
-    }
+        recipient: Address,
+        amount: i128,
+        asset: Address,
+        invoice_hash: BytesN<32>,
+        nullifier: BytesN<32>,
+        prev_epoch_id: u64,
+        prev_spent: i128,
+        prev_action_count: u64,
+    ) -> Result<(), Error> {
+        agent.require_auth();
+        if amount <= 0 {
+            return Err(Error::InvalidAmount);
+        }
 
-    /// Phase-0 testnet probe: verify the embedded fixture proof with no args.
-    /// Confirms the BN254 host functions are live on the deployed network and
-    /// reports the real on-chain resource cost. Removed after Phase 0.
-    #[cfg(feature = "spike-probe")]
-    pub fn verify_spike(env: Env) -> bool {
-        let (vk, proof, signals) = load_spike(&env);
-        groth16_verify(&env, vk, proof, signals).unwrap()
+        // (1) Policy must exist and be active.
+        let pkey = DataKey::Policy(agent.clone(), policy_commitment.clone());
+        let policy: PolicyRecord =
+            env.storage().persistent().get(&pkey).ok_or(Error::PolicyNotFound)?;
+        if policy.revoked {
+            return Err(Error::PolicyRevoked);
+        }
+
+        // (2) The proof's prev_* inputs must equal the effective prior state.
+        let akey = DataKey::Authority(agent.clone(), policy_commitment.clone());
+        let stored: AuthorityState = env
+            .storage()
+            .persistent()
+            .get(&akey)
+            .unwrap_or(AuthorityState { epoch_id: 0, spent_in_epoch: 0, action_count: 0 });
+        let effective = effective_prior(&stored, policy.epoch_seconds, env.ledger().timestamp());
+        if prev_epoch_id != effective.epoch_id
+            || prev_spent != effective.spent_in_epoch
+            || prev_action_count != effective.action_count
+        {
+            return Err(Error::StateMismatch);
+        }
+
+        // (3) Nullifier must be unused.
+        let nkey = DataKey::Nullifier(nullifier.clone());
+        if env.storage().persistent().has(&nkey) {
+            return Err(Error::NullifierUsed);
+        }
+
+        // The circuit also enforces these state-transition relations.
+        let new_spent = prev_spent.checked_add(amount).ok_or(Error::Overflow)?;
+        let new_action_count = prev_action_count.checked_add(1).ok_or(Error::Overflow)?;
+
+        // (4) Verify the proof against the reconstructed public inputs.
+        let pub_inputs = encoding::build_public_inputs(
+            &env,
+            &policy_commitment,
+            &policy.recipient_root,
+            &recipient,
+            amount,
+            &invoice_hash,
+            &nullifier,
+            &agent,
+            &asset,
+            &env.current_contract_address(),
+            prev_epoch_id,
+            prev_spent,
+            prev_action_count,
+            new_spent,
+            new_action_count,
+        );
+        if !groth16::verify(&env, vk::verification_key(&env), proof, pub_inputs)? {
+            return Err(Error::InvalidProof);
+        }
+
+        // (5) Commit atomically: consume nullifier, write new state, settle, emit.
+        env.storage().persistent().set(&nkey, &true);
+        env.storage().persistent().extend_ttl(&nkey, DAY_TTL, RETENTION_TTL);
+
+        env.storage().persistent().set(
+            &akey,
+            &AuthorityState {
+                epoch_id: effective.epoch_id,
+                spent_in_epoch: new_spent,
+                action_count: new_action_count,
+            },
+        );
+        env.storage().persistent().extend_ttl(&akey, DAY_TTL, RETENTION_TTL);
+
+        TokenClient::new(&env, &asset).transfer(&agent, &recipient, &amount);
+
+        ActionReceipt {
+            agent,
+            policy: policy_commitment,
+            recipient,
+            amount,
+            asset,
+            nullifier,
+            epoch_id: effective.epoch_id,
+            new_action_count,
+        }
+        .publish(&env);
+
+        Ok(())
     }
 }
-
-/// Core Groth16/BN254 pairing check, shared by the public entrypoint and the
-/// Phase-0 probe.
-fn groth16_verify(
-    env: &Env,
-    vk: VerificationKey,
-    proof: Proof,
-    pub_signals: Vec<Fr>,
-) -> Result<bool, VerifierError> {
-    let bn = env.crypto().bn254();
-
-    // One IC point per public signal, plus IC[0].
-    if pub_signals.len() + 1 != vk.ic.len() {
-        return Err(VerifierError::MalformedVerifyingKey);
-    }
-
-    // vk_x = ic[0] + sum(pub_signals[i] * ic[i+1])
-    let mut vk_x = vk.ic.get(0).unwrap();
-    for (s, v) in pub_signals.iter().zip(vk.ic.iter().skip(1)) {
-        let prod = bn.g1_mul(&v, &s);
-        vk_x = bn.g1_add(&vk_x, &prod);
-    }
-
-    // e(-A, B) * e(alpha, beta) * e(vk_x, gamma) * e(C, delta) == 1
-    let neg_a = -proof.a;
-    let vp1 = vec![env, neg_a, vk.alpha, vk_x, proof.c];
-    let vp2 = vec![env, proof.b, vk.beta, vk.gamma, vk.delta];
-
-    Ok(bn.pairing_check(vp1, vp2))
-}
-
-/// Build the verification key, proof, and public signals from the embedded
-/// Phase-0 spike fixtures (a*b=c, c=33).
-#[cfg(feature = "spike-probe")]
-fn load_spike(env: &Env) -> (VerificationKey, Proof, Vec<Fr>) {
-    use soroban_sdk::BytesN;
-    let mut ic = Vec::new(env);
-    for p in spike_fixtures::IC.iter() {
-        ic.push_back(G1Affine::from_array(env, p));
-    }
-    let vk = VerificationKey {
-        alpha: G1Affine::from_array(env, &spike_fixtures::ALPHA),
-        beta: G2Affine::from_array(env, &spike_fixtures::BETA),
-        gamma: G2Affine::from_array(env, &spike_fixtures::GAMMA),
-        delta: G2Affine::from_array(env, &spike_fixtures::DELTA),
-        ic,
-    };
-    let proof = Proof {
-        a: G1Affine::from_array(env, &spike_fixtures::PI_A),
-        b: G2Affine::from_array(env, &spike_fixtures::PI_B),
-        c: G1Affine::from_array(env, &spike_fixtures::PI_C),
-    };
-    let mut signals = Vec::new(env);
-    for s in spike_fixtures::PUB_SIGNALS.iter() {
-        signals.push_back(Fr::from_bytes(BytesN::from_array(env, s)));
-    }
-    (vk, proof, signals)
-}
-
-#[cfg(any(test, feature = "spike-probe"))]
-mod spike_fixtures;
-#[cfg(test)]
-mod test;
