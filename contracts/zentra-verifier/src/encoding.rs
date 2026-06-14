@@ -3,7 +3,8 @@
 //! proof is bound to the real recipient, asset, agent, and contract.
 
 use soroban_sdk::{
-    crypto::bn254::Bn254Fr as Fr, Address, AddressPayload, Bytes, BytesN, Env, Vec, U256,
+    address_payload::AddressPayload, crypto::bn254::Bn254Fr as Fr, Address, Bytes, BytesN, Env,
+    Vec, U256,
 };
 
 /// A 32-byte value that is already a valid field element (< r): Poseidon outputs
@@ -17,8 +18,8 @@ fn fr_from_field_bytes(b: &BytesN<32>) -> Fr {
 fn fr_from_address(env: &Env, addr: &Address) -> Fr {
     let payload = addr.to_payload().expect("address has a 32-byte payload");
     let bytes: BytesN<32> = match payload {
-        AddressPayload::Account(k) => k,
-        AddressPayload::Contract(c) => c,
+        AddressPayload::AccountIdPublicKeyEd25519(k) => k,
+        AddressPayload::ContractIdHash(c) => c,
     };
     let u = U256::from_be_bytes(env, &Bytes::from_array(env, &bytes.to_array()));
     Fr::from_u256(u)
