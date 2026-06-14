@@ -2,7 +2,8 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { Keypair } from "@stellar/stellar-sdk";
+import { randomBytes } from "node:crypto";
+import { Keypair, StrKey } from "@stellar/stellar-sdk";
 import * as snarkjs from "snarkjs";
 
 import { createPolicy } from "./policy";
@@ -17,8 +18,8 @@ const artifacts = {
 const vk = JSON.parse(readFileSync(resolve(circuitDir, "verification_key.json"), "utf8"));
 
 const D = 10_000_000n;
-const contractId = Keypair.random().publicKey().replace(/^G/, "C"); // any C-address shape is fine for field derivation
-const asset = Keypair.random().publicKey().replace(/^G/, "C");
+const contractId = StrKey.encodeContract(randomBytes(32)); // valid C-address
+const asset = StrKey.encodeContract(randomBytes(32));
 
 async function makePolicy() {
   const vendors = [Keypair.random(), Keypair.random(), Keypair.random()];
