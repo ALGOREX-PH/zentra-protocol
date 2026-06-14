@@ -5,7 +5,8 @@ import { StellarClient, TESTNET, type AuthorityState, type ConfirmedTx } from ".
 
 export { createPolicy } from "./policy";
 export type { Policy, PolicyConfig } from "./policy";
-export type { ActionContext, ProveResult } from "./prover";
+export { proveAction } from "./prover";
+export type { ActionContext, ProveResult, CircuitArtifacts } from "./prover";
 export { StellarClient, TESTNET } from "./client";
 export type { AuthorityState, ConfirmedTx } from "./client";
 export * from "./crypto";
