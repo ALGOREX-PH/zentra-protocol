@@ -70,17 +70,17 @@ describe("addressToField", () => {
 });
 
 describe("public input ordering", () => {
-  it("matches the canonical order (13 inputs, no erc8004AgentId)", () => {
+  it("matches the canonical order (14 inputs, no erc8004AgentId)", () => {
     expect([...PUBLIC_INPUT_ORDER]).toEqual(golden.publicInputOrder);
-    expect(PUBLIC_INPUT_ORDER.length).toBe(13);
+    expect(PUBLIC_INPUT_ORDER.length).toBe(14);
   });
 
-  it("encodePublicInputs emits 13 x 32-byte arrays in order", () => {
+  it("encodePublicInputs emits 14 x 32-byte arrays in order", () => {
     const values = Object.fromEntries(
       PUBLIC_INPUT_ORDER.map((n, i) => [n, BigInt(i + 1)]),
     ) as Record<PublicInputName, bigint>;
     const out = encodePublicInputs(values);
-    expect(out.length).toBe(13);
+    expect(out.length).toBe(14);
     out.forEach((b, i) => {
       expect(b.length).toBe(32);
       expect(bytes32ToField(b)).toBe(BigInt(i + 1));
