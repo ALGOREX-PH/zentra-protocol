@@ -26,6 +26,7 @@ witness.wtns
 #   verification_key.json, proof.json, public.json, and generated vk.rs
 
 # Secrets / local config
+.demo-state.json
 .env
 .env.*
 !.env.example
