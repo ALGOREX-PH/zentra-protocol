@@ -43,6 +43,7 @@ template PaymentPolicy(depth) {
     // ----- public inputs (MUST match @zentra/serialization PUBLIC_INPUT_ORDER) -----
     signal input policyCommitment;
     signal input recipientRoot;
+    signal input recipient;        // public: the specific paid vendor (revealed at settlement anyway)
     signal input amount;
     signal input invoiceHash;
     signal input nullifier;
@@ -59,7 +60,6 @@ template PaymentPolicy(depth) {
     signal input privateMaxAmount;
     signal input privateDailyLimit;
     signal input policySalt;
-    signal input recipient;
     signal input pathElements[depth];
     signal input pathIndices[depth];
     signal input invoicePreimage;
@@ -127,7 +127,7 @@ template PaymentPolicy(depth) {
 }
 
 component main { public [
-    policyCommitment, recipientRoot, amount, invoiceHash, nullifier,
+    policyCommitment, recipientRoot, recipient, amount, invoiceHash, nullifier,
     agentAddress, assetId, contractAddress, prevEpochId, prevSpent,
     prevActionCount, newSpent, newActionCount
 ] } = PaymentPolicy(4);
