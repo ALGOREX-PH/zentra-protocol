@@ -1,0 +1,17 @@
+{
+  "name": "@zentra/cli",
+  "version": "0.0.1",
+  "type": "module",
+  "description": "zentra — terminal tooling for ZK-guarded agent payments on Stellar",
+  "bin": { "zentra": "./src/index.ts" },
+  "exports": { ".": "./src/index.ts" },
+  "files": ["src"],
+  "scripts": {
+    "zentra": "tsx src/index.ts"
+  },
+  "dependencies": {
+    "@stellar/stellar-sdk": "^13.1.0",
+    "@zentra/sdk": "workspace:*",
+    "commander": "^12.1.0"
+  }
+}
