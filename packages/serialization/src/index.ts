@@ -76,6 +76,7 @@ export function toHex(bytes: Uint8Array): string {
 export const PUBLIC_INPUT_ORDER = [
   "policyCommitment",
   "recipientRoot",
+  "recipient",
   "amount",
   "invoiceHash",
   "nullifier",
