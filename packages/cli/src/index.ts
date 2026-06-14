@@ -166,7 +166,7 @@ program
         prevActionCount,
       },
       cfg.circuit,
-    ).catch((e) => die(e.message));
+    ).catch((e: any) => die(e.message));
     ok("Built recipient Merkle proof");
     ok("Generated action nullifier");
     ok("Created ZK proof");
@@ -208,11 +208,11 @@ program
       prevSpent: BigInt(pf.prevSpent),
       prevActionCount: BigInt(pf.prevActionCount),
     };
-    const tx = await client.authorizeAction(agent, p, result, cfg.asset).catch((e) => die(e.message));
+    const tx = await client.authorizeAction(agent, p, result, cfg.asset).catch((e: any) => die(e.message));
     ok("Submitted proof to Stellar testnet");
     ok("Soroban verifier accepted proof");
     ok("Payment released");
     console.log(`  tx: ${(tx as { hash: string }).hash}\n`);
   });
 
-program.parseAsync().catch((e) => die(e.message));
+program.parseAsync().catch((e: any) => die(e.message));
