@@ -10,7 +10,7 @@
     "zentra": "tsx src/index.ts"
   },
   "dependencies": {
-    "@stellar/stellar-sdk": "^13.1.0",
+    "@stellar/stellar-sdk": "^15.1.0",
     "@zentra/sdk": "workspace:*",
     "commander": "^12.1.0"
   }
