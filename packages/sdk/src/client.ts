@@ -21,6 +21,11 @@ export const TESTNET = {
 };
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const raced = <T>(p: Promise<T>, ms: number, label: string): Promise<T> =>
+  Promise.race([
+    p,
+    new Promise<T>((_, rej) => setTimeout(() => rej(new Error(`${label} timed out after ${ms}ms`)), ms)),
+  ]);
 
 /** decimal string -> 32-byte big-endian (raw, NO field reduction: these are Fp coordinates). */
 function be32(dec: string): Buffer {
@@ -67,7 +72,7 @@ export class StellarClient {
   }
 
   private async invoke(source: Keypair, op: xdr.Operation): Promise<ConfirmedTx> {
-    const account = await this.server.getAccount(source.publicKey());
+    const account = await raced(this.server.getAccount(source.publicKey()), 25000, "getAccount");
     const tx = new TransactionBuilder(account, {
       fee: BASE_FEE,
       networkPassphrase: this.networkPassphrase,
@@ -76,20 +81,20 @@ export class StellarClient {
       .setTimeout(60)
       .build();
 
-    const sim = await this.server.simulateTransaction(tx);
+    const sim = await raced(this.server.simulateTransaction(tx), 25000, "simulate");
     if (rpc.Api.isSimulationError(sim)) throw new Error(`simulation failed: ${sim.error}`);
     const prepared = rpc.assembleTransaction(tx, sim).build();
     prepared.sign(source);
 
-    const sent = await this.server.sendTransaction(prepared);
+    const sent = await raced(this.server.sendTransaction(prepared), 25000, "send");
     if (sent.status === "ERROR") {
       throw new Error(`submit failed: ${JSON.stringify(sent.errorResult)}`);
     }
-    let got = await this.server.getTransaction(sent.hash);
+    let got = await raced(this.server.getTransaction(sent.hash), 15000, "getTransaction");
     for (let tries = 0; got.status === rpc.Api.GetTransactionStatus.NOT_FOUND; tries++) {
-      if (tries >= 30) throw new Error(`tx ${sent.hash} not confirmed after 30s (NOT_FOUND)`);
-      await sleep(1000);
-      got = await this.server.getTransaction(sent.hash);
+      if (tries >= 20) throw new Error(`tx ${sent.hash} not confirmed (NOT_FOUND)`);
+      await sleep(1500);
+      got = await raced(this.server.getTransaction(sent.hash), 15000, "getTransaction");
     }
     if (got.status !== rpc.Api.GetTransactionStatus.SUCCESS) {
       throw new Error(`tx ${sent.hash} failed: ${JSON.stringify((got as any).resultXdr ?? got.status)}`);
@@ -99,7 +104,7 @@ export class StellarClient {
 
   /** Read-only simulation; returns the decoded return value. */
   private async simRead(op: xdr.Operation, sourcePub: string): Promise<any> {
-    const account = await this.server.getAccount(sourcePub);
+    const account = await raced(this.server.getAccount(sourcePub), 25000, "getAccount");
     const tx = new TransactionBuilder(account, {
       fee: BASE_FEE,
       networkPassphrase: this.networkPassphrase,
@@ -107,7 +112,7 @@ export class StellarClient {
       .addOperation(op)
       .setTimeout(60)
       .build();
-    const sim = await this.server.simulateTransaction(tx);
+    const sim = await raced(this.server.simulateTransaction(tx), 25000, "simulate");
     if (rpc.Api.isSimulationError(sim)) throw new Error(`simulation failed: ${sim.error}`);
     return scValToNative(sim.result!.retval);
   }

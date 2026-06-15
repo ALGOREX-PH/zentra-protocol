@@ -78,6 +78,8 @@ pub struct ActionReceipt {
     pub nullifier: BytesN<32>,
     pub epoch_id: u64,
     pub new_action_count: u64,
+    /// CAP-0075 Poseidon hash of the action's public fields (canonical receipt id).
+    pub action_id: BytesN<32>,
 }
 
 /// Effective prior AuthorityState, applying epoch rollover: entering a new epoch
@@ -245,6 +247,8 @@ impl ZentraVerifier {
 
         TokenClient::new(&env, &asset).transfer(&agent, &recipient, &amount);
 
+        let action_id =
+            encoding::action_id(&env, &agent, &recipient, amount, &nullifier, new_spent);
         ActionReceipt {
             agent,
             policy: policy_commitment,
@@ -254,6 +258,7 @@ impl ZentraVerifier {
             nullifier,
             epoch_id: effective.epoch_id,
             new_action_count,
+            action_id,
         }
         .publish(&env);
 
