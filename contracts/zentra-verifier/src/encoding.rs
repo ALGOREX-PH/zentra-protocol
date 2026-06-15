@@ -23,7 +23,10 @@ fn payload_bytes(addr: &Address) -> BytesN<32> {
 }
 
 fn u256_from_bytes32(env: &Env, b: &BytesN<32>) -> U256 {
-    U256::from_be_bytes(env, &Bytes::from_array(env, &b.to_array()))
+    // Reduce mod the scalar field: address payloads can exceed r, and
+    // soroban-poseidon panics on inputs >= the field modulus.
+    let u = U256::from_be_bytes(env, &Bytes::from_array(env, &b.to_array()));
+    Fr::from_u256(u).to_u256()
 }
 
 /// Derive a field element from a Stellar address, reduced modulo the scalar
