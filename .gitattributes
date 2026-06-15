@@ -1,0 +1,14 @@
+# Normalize line endings: LF in the repo for all text files.
+* text=auto eol=lf
+
+# Scripts must stay LF so they run on POSIX shells.
+*.sh text eol=lf
+*.mjs text eol=lf
+
+# Binary artifacts
+*.ptau binary
+*.zkey binary
+*.wtns binary
+*.wasm binary
+*.png binary
+*.jpg binary

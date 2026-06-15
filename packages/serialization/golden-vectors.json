@@ -1,0 +1,27 @@
+{
+  "_comment": "Canonical field-element -> 32-byte big-endian encodings. Asserted by both the TS test (src/index.test.ts) and the Rust test (contracts/zentra-verifier) so both sides agree byte-for-byte.",
+  "frModulus": "21888242871839275222246405745257275088548364400416034343698204186575808495617",
+  "fieldToBytes32": [
+    { "dec": "0", "hex": "0000000000000000000000000000000000000000000000000000000000000000" },
+    { "dec": "1", "hex": "0000000000000000000000000000000000000000000000000000000000000001" },
+    { "dec": "33", "hex": "0000000000000000000000000000000000000000000000000000000000000021" },
+    { "dec": "750000000", "hex": "000000000000000000000000000000000000000000000000000000002cb41780" },
+    { "dec": "255", "hex": "00000000000000000000000000000000000000000000000000000000000000ff" }
+  ],
+  "publicInputOrder": [
+    "policyCommitment",
+    "recipientRoot",
+    "recipient",
+    "amount",
+    "invoiceHash",
+    "nullifier",
+    "agentAddress",
+    "assetId",
+    "contractAddress",
+    "prevEpochId",
+    "prevSpent",
+    "prevActionCount",
+    "newSpent",
+    "newActionCount"
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "name": "@zentra/example-vendor-payment-agent",
+  "version": "0.0.1",
+  "type": "module",
+  "private": true,
+  "description": "ZK-guarded vendor payment agent demo — Panels A (legit), B (prompt injection), C (over-spend)",
+  "scripts": {
+    "demo": "tsx demo.ts"
+  },
+  "dependencies": {
+    "@stellar/stellar-sdk": "^15.1.0",
+    "@zentra/sdk": "workspace:*"
+  }
+}

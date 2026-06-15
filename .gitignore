@@ -1,0 +1,42 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Rust / Soroban
+target/
+**/*.rs.bk
+Cargo.lock.bak
+
+# Build outputs
+dist/
+build/
+*.tsbuildinfo
+
+# Circom / snarkjs generated artifacts (regenerate via build scripts)
+*.ptau
+*.zkey
+*.r1cs
+*.sym
+*_js/
+*_cpp/
+witness.wtns
+*.wtns
+
+# Keep small, source-of-truth ZK artifacts (committed explicitly):
+#   verification_key.json, proof.json, public.json, and generated vk.rs
+
+# Secrets / local config
+.demo-state.json
+.env
+.env.*
+!.env.example
+*.pem
+.soroban/
+.stellar/
+
+# Editor / OS
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.log
