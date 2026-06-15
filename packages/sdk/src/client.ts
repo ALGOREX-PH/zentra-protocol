@@ -86,12 +86,13 @@ export class StellarClient {
       throw new Error(`submit failed: ${JSON.stringify(sent.errorResult)}`);
     }
     let got = await this.server.getTransaction(sent.hash);
-    while (got.status === rpc.Api.GetTransactionStatus.NOT_FOUND) {
+    for (let tries = 0; got.status === rpc.Api.GetTransactionStatus.NOT_FOUND; tries++) {
+      if (tries >= 30) throw new Error(`tx ${sent.hash} not confirmed after 30s (NOT_FOUND)`);
       await sleep(1000);
       got = await this.server.getTransaction(sent.hash);
     }
     if (got.status !== rpc.Api.GetTransactionStatus.SUCCESS) {
-      throw new Error(`tx ${sent.hash} failed with status ${got.status}`);
+      throw new Error(`tx ${sent.hash} failed: ${JSON.stringify((got as any).resultXdr ?? got.status)}`);
     }
     return { hash: sent.hash };
   }
