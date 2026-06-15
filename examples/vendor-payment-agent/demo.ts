@@ -14,7 +14,7 @@ import { Zentra, proveAction, type StatusEvent } from "@zentra/sdk";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const CONTRACT =
-  process.env.ZENTRA_CONTRACT ?? "CDQ46SV2YI2AKCJFA7DWTL3VQTNSWQJTPFPYONEEKXL3ZVINAT3K3JA4";
+  process.env.ZENTRA_CONTRACT ?? "CDS6BURFWRTU6FXN6IXOSKOIAZ4PX7XJ6U5FSI345XX3O5FGP7U3K7VY";
 const ASSET = Asset.native().contractId(Networks.TESTNET); // native XLM SAC
 const CIRCUIT = {
   wasmPath: resolve(here, "../../circuits/payment-policy/payment_policy_js/payment_policy.wasm"),
