@@ -107,3 +107,18 @@ fn revoke_existing_policy_succeeds_and_missing_policy_errors() {
     let missing = BytesN::from_array(&env, &[9u8; 32]);
     assert!(client.try_revoke_policy(&agent, &missing).is_err());
 }
+
+#[test]
+fn action_id_is_deterministic_and_input_sensitive() {
+    let env = Env::default();
+    let agent = Address::generate(&env);
+    let recipient = Address::generate(&env);
+    let nullifier = BytesN::from_array(&env, &[7u8; 32]);
+
+    let a = crate::encoding::action_id(&env, &agent, &recipient, 750_000_000, &nullifier, 3_000_000_000);
+    let b = crate::encoding::action_id(&env, &agent, &recipient, 750_000_000, &nullifier, 3_000_000_000);
+    assert_eq!(a, b, "CAP-0075 Poseidon hash must be deterministic");
+
+    let c = crate::encoding::action_id(&env, &agent, &recipient, 760_000_000, &nullifier, 3_000_000_000);
+    assert_ne!(a, c, "changing an input must change the hash");
+}
