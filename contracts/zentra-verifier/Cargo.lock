@@ -1435,6 +1435,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "soroban-poseidon"
+version = "26.0.0"
+source = "git+https://github.com/stellar/rs-soroban-poseidon#b4bf706b7d0d602f9389280d259c0fb9f19983bf"
+dependencies = [
+ "soroban-sdk",
+]
+
+[[package]]
 name = "soroban-sdk"
 version = "26.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1856,6 +1864,7 @@ dependencies = [
 name = "zentra-verifier"
 version = "0.0.1"
 dependencies = [
+ "soroban-poseidon",
  "soroban-sdk",
 ]
 

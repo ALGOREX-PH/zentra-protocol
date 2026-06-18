@@ -11,10 +11,12 @@ doctest = false
 
 [dependencies]
 # hazmat-address: Address::to_payload() to derive a field element from an address.
-soroban-sdk = { version = "26.1.0", features = ["hazmat-address"] }
+# hazmat-crypto:  CAP-0075 Poseidon permutation used for the on-chain receipt hash.
+soroban-sdk = { version = "26.1.0", features = ["hazmat-address", "hazmat-crypto"] }
+soroban-poseidon = { git = "https://github.com/stellar/rs-soroban-poseidon" }
 
 [dev-dependencies]
-soroban-sdk = { version = "26.1.0", features = ["testutils", "hazmat-address"] }
+soroban-sdk = { version = "26.1.0", features = ["testutils", "hazmat-address", "hazmat-crypto"] }
 
 [profile.release]
 opt-level = "z"
