@@ -16,7 +16,7 @@ The 3-panel demo runs end-to-end against testnet:
 - **Panel B (compromised agent):** prompt injection to pay an attacker -> **no proof could be produced** (recipient not in the Merkle root)
 - **Panel C (over-spend):** agent lies about prior spend -> **contract's AuthorityState check rejected it; no money moved**
 
-Verifier contract: `CDLZFP6444H4MR5S4WHCHXOBN5DBDAXJG3BDHZDGCJEHFZ7XMSU3RIXD`
+Verifier contract: `CDS6BURFWRTU6FXN6IXOSKOIAZ4PX7XJ6U5FSI345XX3O5FGP7U3K7VY`
 
 ## Why this is real (not security theater)
 
