@@ -8,6 +8,13 @@ Zentra lets developers build AI agents that can trigger Stellar payments **only 
 
 Private rules stay private. Agent actions become verifiable.
 
+> **Looking for the dApp or the Stellar hackathon belts (White → Green)?**
+> The live testnet dApp — Freighter wallet connect/disconnect, XLM balances, and
+> payments — plus all four belt submissions live in the
+> **[zentra-docs](https://github.com/ALGOREX-PH/zentra-docs)** repo
+> ([live app](https://zentra-docs.vercel.app/app)). *This* repo is the underlying ZK
+> protocol: the Circom circuits, the Soroban verifier, the SDK, and the CLI.
+
 ## Verified live on Stellar testnet
 
 The 3-panel demo runs end-to-end against testnet:
