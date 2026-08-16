@@ -46,7 +46,10 @@ fn rejects_tampered_public_signal() {
     let mut rows = fx::PUB_SIGNALS; // copy
     rows[3][31] ^= 1; // flip the low byte of `amount`
     let res = client.verify_proof(&fixture_proof(&env), &signals_from(&env, &rows));
-    assert_eq!(res, false, "a valid proof with a tampered public signal must be rejected");
+    assert_eq!(
+        res, false,
+        "a valid proof with a tampered public signal must be rejected"
+    );
 }
 
 #[test]
@@ -110,15 +113,30 @@ fn garbage_256_byte_proof_parses_but_fails_verification() {
 
 #[test]
 fn effective_prior_same_epoch_is_unchanged() {
-    let s = AuthorityState { epoch_id: 5, spent_in_epoch: 300, action_count: 7 };
+    let s = AuthorityState {
+        epoch_id: 5,
+        spent_in_epoch: 300,
+        action_count: 7,
+    };
     assert_eq!(effective_prior(&s, 100, 550), s); // 550 / 100 == 5
 }
 
 #[test]
 fn effective_prior_rollover_resets_spend_keeps_count() {
-    let s = AuthorityState { epoch_id: 5, spent_in_epoch: 300, action_count: 7 };
+    let s = AuthorityState {
+        epoch_id: 5,
+        spent_in_epoch: 300,
+        action_count: 7,
+    };
     let e = effective_prior(&s, 100, 650); // 650 / 100 == 6 != 5
-    assert_eq!(e, AuthorityState { epoch_id: 6, spent_in_epoch: 0, action_count: 7 });
+    assert_eq!(
+        e,
+        AuthorityState {
+            epoch_id: 6,
+            spent_in_epoch: 0,
+            action_count: 7
+        }
+    );
 }
 
 // ---- Policy registration / state / revocation ----
@@ -142,7 +160,14 @@ fn register_initializes_authority_state_at_current_epoch() {
     client.register_policy(&agent, &commit, &root, &86_400);
 
     let st = client.authority_state(&agent, &commit);
-    assert_eq!(st, AuthorityState { epoch_id: 20_180, spent_in_epoch: 0, action_count: 0 });
+    assert_eq!(
+        st,
+        AuthorityState {
+            epoch_id: 20_180,
+            spent_in_epoch: 0,
+            action_count: 0
+        }
+    );
 }
 
 #[test]
@@ -163,7 +188,14 @@ fn authority_state_absent_is_zero() {
     let env = Env::default();
     let (client, agent, commit, _root) = setup(&env);
     let st = client.authority_state(&agent, &commit);
-    assert_eq!(st, AuthorityState { epoch_id: 0, spent_in_epoch: 0, action_count: 0 });
+    assert_eq!(
+        st,
+        AuthorityState {
+            epoch_id: 0,
+            spent_in_epoch: 0,
+            action_count: 0
+        }
+    );
 }
 
 #[test]
@@ -185,10 +217,31 @@ fn action_id_is_deterministic_and_input_sensitive() {
     let recipient = Address::generate(&env);
     let nullifier = BytesN::from_array(&env, &[7u8; 32]);
 
-    let a = crate::encoding::action_id(&env, &agent, &recipient, 750_000_000, &nullifier, 3_000_000_000);
-    let b = crate::encoding::action_id(&env, &agent, &recipient, 750_000_000, &nullifier, 3_000_000_000);
+    let a = crate::encoding::action_id(
+        &env,
+        &agent,
+        &recipient,
+        750_000_000,
+        &nullifier,
+        3_000_000_000,
+    );
+    let b = crate::encoding::action_id(
+        &env,
+        &agent,
+        &recipient,
+        750_000_000,
+        &nullifier,
+        3_000_000_000,
+    );
     assert_eq!(a, b, "CAP-0075 Poseidon hash must be deterministic");
 
-    let c = crate::encoding::action_id(&env, &agent, &recipient, 760_000_000, &nullifier, 3_000_000_000);
+    let c = crate::encoding::action_id(
+        &env,
+        &agent,
+        &recipient,
+        760_000_000,
+        &nullifier,
+        3_000_000_000,
+    );
     assert_ne!(a, c, "changing an input must change the hash");
 }

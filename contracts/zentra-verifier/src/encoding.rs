@@ -2,11 +2,11 @@
 //! Field values come from the contract's own arguments / stored state, so the
 //! proof is bound to the real recipient, asset, agent, and contract.
 
+use soroban_poseidon::poseidon_hash;
 use soroban_sdk::{
     address_payload::AddressPayload, crypto::bn254::Bn254Fr as Fr, Address, Bytes, BytesN, Env,
     Vec, U256,
 };
-use soroban_poseidon::poseidon_hash;
 
 /// A 32-byte value that is already a valid field element (< r): Poseidon outputs
 /// such as the policy commitment, recipient root, invoice hash, and nullifier.
@@ -161,7 +161,11 @@ mod golden_vectors {
     fn field_encodings_match_serialization_golden_vectors() {
         let env = Env::default();
         let vecs = vectors();
-        assert_eq!(vecs.len(), 5, "golden-vectors.json must contain 5 fieldToBytes32 entries");
+        assert_eq!(
+            vecs.len(),
+            5,
+            "golden-vectors.json must contain 5 fieldToBytes32 entries"
+        );
         for (dec, expected) in vecs {
             let exp = BytesN::from_array(&env, &expected);
             assert_eq!(

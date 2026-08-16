@@ -89,7 +89,11 @@ pub struct ActionReceipt {
 fn effective_prior(stored: &AuthorityState, epoch_seconds: u64, now: u64) -> AuthorityState {
     let cur = now / epoch_seconds;
     if cur != stored.epoch_id {
-        AuthorityState { epoch_id: cur, spent_in_epoch: 0, action_count: stored.action_count }
+        AuthorityState {
+            epoch_id: cur,
+            spent_in_epoch: 0,
+            action_count: stored.action_count,
+        }
     } else {
         stored.clone()
     }
@@ -117,19 +121,31 @@ impl ZentraVerifier {
         let pkey = DataKey::Policy(agent.clone(), policy_commitment.clone());
         env.storage().persistent().set(
             &pkey,
-            &PolicyRecord { recipient_root, epoch_seconds, revoked: false },
+            &PolicyRecord {
+                recipient_root,
+                epoch_seconds,
+                revoked: false,
+            },
         );
-        env.storage().persistent().extend_ttl(&pkey, DAY_TTL, RETENTION_TTL);
+        env.storage()
+            .persistent()
+            .extend_ttl(&pkey, DAY_TTL, RETENTION_TTL);
 
         let akey = DataKey::Authority(agent, policy_commitment);
         if !env.storage().persistent().has(&akey) {
             let epoch = env.ledger().timestamp() / epoch_seconds;
             env.storage().persistent().set(
                 &akey,
-                &AuthorityState { epoch_id: epoch, spent_in_epoch: 0, action_count: 0 },
+                &AuthorityState {
+                    epoch_id: epoch,
+                    spent_in_epoch: 0,
+                    action_count: 0,
+                },
             );
         }
-        env.storage().persistent().extend_ttl(&akey, DAY_TTL, RETENTION_TTL);
+        env.storage()
+            .persistent()
+            .extend_ttl(&akey, DAY_TTL, RETENTION_TTL);
         Ok(())
     }
 
@@ -138,18 +154,27 @@ impl ZentraVerifier {
         env.storage()
             .persistent()
             .get(&DataKey::Authority(agent, policy))
-            .unwrap_or(AuthorityState { epoch_id: 0, spent_in_epoch: 0, action_count: 0 })
+            .unwrap_or(AuthorityState {
+                epoch_id: 0,
+                spent_in_epoch: 0,
+                action_count: 0,
+            })
     }
 
     /// Revoke a policy; no further actions can be authorized under it.
     pub fn revoke_policy(env: Env, agent: Address, policy: BytesN<32>) -> Result<(), Error> {
         agent.require_auth();
         let pkey = DataKey::Policy(agent, policy);
-        let mut rec: PolicyRecord =
-            env.storage().persistent().get(&pkey).ok_or(Error::PolicyNotFound)?;
+        let mut rec: PolicyRecord = env
+            .storage()
+            .persistent()
+            .get(&pkey)
+            .ok_or(Error::PolicyNotFound)?;
         rec.revoked = true;
         env.storage().persistent().set(&pkey, &rec);
-        env.storage().persistent().extend_ttl(&pkey, DAY_TTL, RETENTION_TTL);
+        env.storage()
+            .persistent()
+            .extend_ttl(&pkey, DAY_TTL, RETENTION_TTL);
         Ok(())
     }
 
@@ -183,19 +208,26 @@ impl ZentraVerifier {
 
         // (1) Policy must exist and be active.
         let pkey = DataKey::Policy(agent.clone(), policy_commitment.clone());
-        let policy: PolicyRecord =
-            env.storage().persistent().get(&pkey).ok_or(Error::PolicyNotFound)?;
+        let policy: PolicyRecord = env
+            .storage()
+            .persistent()
+            .get(&pkey)
+            .ok_or(Error::PolicyNotFound)?;
         if policy.revoked {
             return Err(Error::PolicyRevoked);
         }
 
         // (2) The proof's prev_* inputs must equal the effective prior state.
         let akey = DataKey::Authority(agent.clone(), policy_commitment.clone());
-        let stored: AuthorityState = env
-            .storage()
-            .persistent()
-            .get(&akey)
-            .unwrap_or(AuthorityState { epoch_id: 0, spent_in_epoch: 0, action_count: 0 });
+        let stored: AuthorityState =
+            env.storage()
+                .persistent()
+                .get(&akey)
+                .unwrap_or(AuthorityState {
+                    epoch_id: 0,
+                    spent_in_epoch: 0,
+                    action_count: 0,
+                });
         let effective = effective_prior(&stored, policy.epoch_seconds, env.ledger().timestamp());
         if prev_epoch_id != effective.epoch_id
             || prev_spent != effective.spent_in_epoch
@@ -239,7 +271,9 @@ impl ZentraVerifier {
 
         // (5) Commit atomically: consume nullifier, write new state, settle, emit.
         env.storage().persistent().set(&nkey, &true);
-        env.storage().persistent().extend_ttl(&nkey, DAY_TTL, RETENTION_TTL);
+        env.storage()
+            .persistent()
+            .extend_ttl(&nkey, DAY_TTL, RETENTION_TTL);
 
         env.storage().persistent().set(
             &akey,
@@ -249,7 +283,9 @@ impl ZentraVerifier {
                 action_count: new_action_count,
             },
         );
-        env.storage().persistent().extend_ttl(&akey, DAY_TTL, RETENTION_TTL);
+        env.storage()
+            .persistent()
+            .extend_ttl(&akey, DAY_TTL, RETENTION_TTL);
 
         TokenClient::new(&env, &asset).transfer(&agent, &recipient, &amount);
 

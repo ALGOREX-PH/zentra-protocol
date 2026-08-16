@@ -36,9 +36,18 @@ impl Proof {
         if raw.len() != 256 {
             return Err(Error::MalformedProof);
         }
-        let a: BytesN<64> = raw.slice(0..64).try_into().map_err(|_| Error::MalformedProof)?;
-        let b: BytesN<128> = raw.slice(64..192).try_into().map_err(|_| Error::MalformedProof)?;
-        let c: BytesN<64> = raw.slice(192..256).try_into().map_err(|_| Error::MalformedProof)?;
+        let a: BytesN<64> = raw
+            .slice(0..64)
+            .try_into()
+            .map_err(|_| Error::MalformedProof)?;
+        let b: BytesN<128> = raw
+            .slice(64..192)
+            .try_into()
+            .map_err(|_| Error::MalformedProof)?;
+        let c: BytesN<64> = raw
+            .slice(192..256)
+            .try_into()
+            .map_err(|_| Error::MalformedProof)?;
         Ok(Proof {
             a: G1Affine::from_bytes(a),
             b: G2Affine::from_bytes(b),
