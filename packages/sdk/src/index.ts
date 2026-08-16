@@ -13,7 +13,7 @@ export type { AuthorityState, ConfirmedTx, SubmitParams } from "./client";
 export * from "./crypto";
 export * from "./errors";
 export { effectivePrior } from "@zentra/serialization";
-export type { PriorState } from "@zentra/serialization";
+export type { PriorState, Groth16Proof } from "@zentra/serialization";
 
 /** Lifecycle events the future frontend (or CLI) can render as panel state. */
 export type StatusEvent =

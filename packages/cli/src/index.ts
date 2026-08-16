@@ -2,14 +2,19 @@
 // zentra — terminal tooling for ZK-guarded agent payments on Stellar.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
+import { pathToFileURL } from "node:url";
 import { Command } from "commander";
 import { Keypair } from "@stellar/stellar-sdk";
 import {
   createPolicy,
+  effectivePrior,
   proveAction,
   StellarClient,
   TESTNET,
+  type Groth16Proof,
   type Policy,
+  type ProveResult,
+  type SubmitParams,
 } from "@zentra/sdk";
 
 const CONFIG = "zentra.config.json";
@@ -36,7 +41,7 @@ function agentKeypair(): Keypair {
   return Keypair.fromSecret(s!);
 }
 // Rebuild the full Policy deterministically from its saved config (salt included).
-async function policyFromFile(file: string): Promise<Policy> {
+export async function policyFromFile(file: string): Promise<Policy> {
   const p = readJson(file);
   return createPolicy({
     name: p.name,
@@ -47,6 +52,48 @@ async function policyFromFile(file: string): Promise<Policy> {
     epochSeconds: p.epochSeconds,
     salt: BigInt(p.salt),
   });
+}
+
+/** The JSON shape `zentra prove` writes and `zentra submit` reads back. */
+export interface SavedProofFile {
+  policy: string;
+  proof: Groth16Proof;
+  recipient: string;
+  amount: string | bigint;
+  invoiceHash: string; // hex
+  nullifier: string; // hex
+  prevEpochId: string | bigint;
+  prevSpent: string | bigint;
+  prevActionCount: string | bigint;
+}
+
+/** Serialize a ProveResult for the proof file (bigints stringified by writeJson). */
+export function savedProofFromResult(policyFile: string, result: ProveResult): SavedProofFile {
+  return {
+    policy: policyFile,
+    proof: result.proof,
+    recipient: result.recipient,
+    amount: result.amount,
+    invoiceHash: toHex(result.invoiceHashBytes),
+    nullifier: toHex(result.nullifierBytes),
+    prevEpochId: result.prevEpochId,
+    prevSpent: result.prevSpent,
+    prevActionCount: result.prevActionCount,
+  };
+}
+
+/** Rehydrate a saved proof file into exactly what authorizeAction submits — no fabricated fields. */
+export function submitParamsFromSavedProof(pf: SavedProofFile): SubmitParams {
+  return {
+    proof: pf.proof,
+    recipient: pf.recipient,
+    amount: BigInt(pf.amount),
+    invoiceHashBytes: fromHex(pf.invoiceHash),
+    nullifierBytes: fromHex(pf.nullifier),
+    prevEpochId: BigInt(pf.prevEpochId),
+    prevSpent: BigInt(pf.prevSpent),
+    prevActionCount: BigInt(pf.prevActionCount),
+  };
 }
 
 const program = new Command();
@@ -144,12 +191,10 @@ program
     const client = new StellarClient(cfg.contractId, cfg.networkPassphrase, cfg.rpcUrl);
 
     const stored = await client.readAuthorityState(agent.publicKey(), p.commitmentBytes);
-    const now = Math.floor(Date.now() / 1000);
-    const cur = BigInt(Math.floor(now / p.epochSeconds));
-    const roll = cur !== stored.epochId;
-    const prevEpochId = cur;
-    const prevSpent = roll ? 0n : stored.spentInEpoch;
-    const prevActionCount = stored.actionCount;
+    const eff = effectivePrior(stored, p.epochSeconds, Math.floor(Date.now() / 1000));
+    const prevEpochId = eff.epochId;
+    const prevSpent = eff.spentInEpoch;
+    const prevActionCount = eff.actionCount;
     ok("Read authoritative on-chain state");
 
     const result = await proveAction(
@@ -172,17 +217,7 @@ program
     ok("Created ZK proof");
 
     const out = resolve("proofs", "payment-proof.json");
-    writeJson(out, {
-      policy: opts.policy,
-      proof: result!.proof,
-      recipient: result!.recipient,
-      amount: result!.amount,
-      invoiceHash: toHex(result!.invoiceHashBytes),
-      nullifier: toHex(result!.nullifierBytes),
-      prevEpochId: result!.prevEpochId,
-      prevSpent: result!.prevSpent,
-      prevActionCount: result!.prevActionCount,
-    });
+    writeJson(out, savedProofFromResult(opts.policy, result!));
     console.log(`  saved → ${out}\n`);
   });
 
@@ -193,26 +228,22 @@ program
     head();
     const cfg = loadConfig();
     const agent = agentKeypair();
-    const pf = readJson(proofFile);
+    const pf: SavedProofFile = readJson(proofFile);
     const p = await policyFromFile(pf.policy);
     const client = new StellarClient(cfg.contractId, cfg.networkPassphrase, cfg.rpcUrl);
-    const result = {
-      proof: pf.proof,
-      publicSignals: [],
-      recipient: pf.recipient,
-      amount: BigInt(pf.amount),
-      nullifier: 0n,
-      nullifierBytes: fromHex(pf.nullifier),
-      invoiceHashBytes: fromHex(pf.invoiceHash),
-      prevEpochId: BigInt(pf.prevEpochId),
-      prevSpent: BigInt(pf.prevSpent),
-      prevActionCount: BigInt(pf.prevActionCount),
-    };
-    const tx = await client.authorizeAction(agent, p, result, cfg.asset).catch((e: any) => die(e.message));
+    const params = submitParamsFromSavedProof(pf);
+    const tx = await client.authorizeAction(agent, p, params, cfg.asset).catch((e: any) => die(e.message));
     ok("Submitted proof to Stellar testnet");
     ok("Soroban verifier accepted proof");
     ok("Payment released");
     console.log(`  tx: ${(tx as { hash: string }).hash}\n`);
   });
 
-program.parseAsync().catch((e: any) => die(e.message));
+// Only run the CLI when executed directly (tsx src/index.ts / the zentra bin),
+// so tests can import the exported helpers without commander taking over argv.
+const isMain =
+  process.argv[1] !== undefined &&
+  pathToFileURL(resolve(process.argv[1])).href === import.meta.url;
+if (isMain) {
+  program.parseAsync().catch((e: any) => die(e.message));
+}
