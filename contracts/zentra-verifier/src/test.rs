@@ -38,7 +38,7 @@ fn verifies_payment_proof() {
 }
 
 #[test]
-fn rejects_tampered_payment_proof() {
+fn rejects_tampered_public_signal() {
     let env = Env::default();
     let id = env.register(ZentraVerifier, ());
     let client = ZentraVerifierClient::new(&env, &id);
@@ -46,7 +46,32 @@ fn rejects_tampered_payment_proof() {
     let mut rows = fx::PUB_SIGNALS; // copy
     rows[3][31] ^= 1; // flip the low byte of `amount`
     let res = client.verify_proof(&fixture_proof(&env), &signals_from(&env, &rows));
-    assert_eq!(res, false, "a proof with a tampered public signal must be rejected");
+    assert_eq!(res, false, "a valid proof with a tampered public signal must be rejected");
+}
+
+#[test]
+fn rejects_tampered_proof_bytes() {
+    let env = Env::default();
+    let id = env.register(ZentraVerifier, ());
+    let client = ZentraVerifierClient::new(&env, &id);
+
+    // Corrupt the proof itself (not a public signal): flip one byte of `a`
+    // in the 256-byte a || b || c blob, then parse it like `authorize_action` does.
+    let mut blob = [0u8; 256];
+    blob[..64].copy_from_slice(&fx::PROOF_A);
+    blob[64..192].copy_from_slice(&fx::PROOF_B);
+    blob[192..].copy_from_slice(&fx::PROOF_C);
+    blob[31] ^= 1;
+    let proof =
+        Proof::from_bytes(&Bytes::from_array(&env, &blob)).expect("256-byte blob must parse");
+
+    // A tampered point is rejected either as `false` or as a host-level
+    // invalid-point error; it must never be accepted.
+    let res = client.try_verify_proof(&proof, &signals_from(&env, &fx::PUB_SIGNALS));
+    assert!(
+        !matches!(res, Ok(Ok(true))),
+        "a proof with tampered proof bytes must be rejected"
+    );
 }
 
 // ---- Proof byte parsing (malformed input returns a typed error, not a trap) ----
