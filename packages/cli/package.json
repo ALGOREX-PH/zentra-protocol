@@ -10,9 +10,15 @@
   },
   "type": "module",
   "description": "zentra — terminal tooling for ZK-guarded agent payments on Stellar. The bin is TypeScript executed via tsx (a devDependency): run `pnpm zentra` in this workspace.",
-  "bin": { "zentra": "./src/index.ts" },
-  "exports": { ".": "./src/index.ts" },
-  "files": ["src"],
+  "bin": {
+    "zentra": "./src/index.ts"
+  },
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "files": [
+    "src"
+  ],
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

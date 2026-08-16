@@ -77,10 +77,12 @@ describe("prove -> submit round-trip", () => {
 
     let captured: SubmitParams | undefined;
     const client = {
-      authorizeAction: vi.fn(async (_agent: Keypair, _policy: unknown, params: SubmitParams, _asset: string) => {
-        captured = params;
-        return { hash: "TXHASH" };
-      }),
+      authorizeAction: vi.fn(
+        async (_agent: Keypair, _policy: unknown, params: SubmitParams, _asset: string) => {
+          captured = params;
+          return { hash: "TXHASH" };
+        },
+      ),
     };
 
     const pf = roundTripDisk(savedProofFromResult("p.json", fakeProveResult(recipient)));

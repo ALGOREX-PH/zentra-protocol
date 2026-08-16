@@ -33,7 +33,10 @@ const toHex = (b: Uint8Array) => Buffer.from(b).toString("hex");
 const fromHex = (h: string) => new Uint8Array(Buffer.from(h, "hex"));
 const readJson = (p: string) => JSON.parse(readFileSync(p, "utf8"));
 const writeJson = (p: string, v: unknown) =>
-  writeFileSync(p, JSON.stringify(v, (_k, x) => (typeof x === "bigint" ? x.toString() : x), 2));
+  writeFileSync(
+    p,
+    JSON.stringify(v, (_k, x) => (typeof x === "bigint" ? x.toString() : x), 2),
+  );
 
 // StrKey-shape validation for addresses read from config/policy files, so the
 // literal "C..." placeholders `zentra init` scaffolds (or any typo) fail fast
@@ -42,7 +45,12 @@ const STRKEY_SHAPE = {
   C: /^C[A-Z2-7]{55}$/, // contract address
   G: /^G[A-Z2-7]{55}$/, // account address
 } as const;
-function assertStrKey(file: string, field: string, value: unknown, kind: keyof typeof STRKEY_SHAPE) {
+function assertStrKey(
+  file: string,
+  field: string,
+  value: unknown,
+  kind: keyof typeof STRKEY_SHAPE,
+) {
   if (typeof value !== "string" || !STRKEY_SHAPE[kind].test(value)) {
     die(
       `${file}: "${field}" is ${JSON.stringify(value)} — not a ${kind}... Stellar address ` +
@@ -261,7 +269,9 @@ program
     const p = await policyFromFile(pf.policy);
     const client = new StellarClient(cfg.contractId, cfg.networkPassphrase, cfg.rpcUrl);
     const params = submitParamsFromSavedProof(pf);
-    const tx = await client.authorizeAction(agent, p, params, cfg.asset).catch((e: any) => die(e.message));
+    const tx = await client
+      .authorizeAction(agent, p, params, cfg.asset)
+      .catch((e: any) => die(e.message));
     ok("Submitted proof to Stellar testnet");
     ok("Soroban verifier accepted proof");
     ok("Payment released");
@@ -271,8 +281,7 @@ program
 // Only run the CLI when executed directly (tsx src/index.ts / the zentra bin),
 // so tests can import the exported helpers without commander taking over argv.
 const isMain =
-  process.argv[1] !== undefined &&
-  pathToFileURL(resolve(process.argv[1])).href === import.meta.url;
+  process.argv[1] !== undefined && pathToFileURL(resolve(process.argv[1])).href === import.meta.url;
 if (isMain) {
   program.parseAsync().catch((e: any) => die(e.message));
 }
