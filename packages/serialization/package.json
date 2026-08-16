@@ -10,6 +10,7 @@
   "types": "./src/index.ts",
   "files": ["src"],
   "scripts": {
+    "typecheck": "tsc --noEmit",
     "test": "vitest run"
   }
 }
