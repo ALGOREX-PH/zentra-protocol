@@ -5,8 +5,9 @@
   "type": "module",
   "packageManager": "pnpm@10.33.0",
   "scripts": {
-    "test": "vitest run",
-    "build": "pnpm -r build"
+    "typecheck": "pnpm -r --if-present typecheck",
+    "test": "pnpm -r --if-present test",
+    "check": "pnpm typecheck && pnpm test"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
