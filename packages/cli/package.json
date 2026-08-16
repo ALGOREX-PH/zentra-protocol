@@ -27,7 +27,7 @@
   "dependencies": {
     "@stellar/stellar-sdk": "^15.1.0",
     "@zentra/sdk": "workspace:*",
-    "commander": "^12.1.0"
+    "commander": "^15.0.0"
   },
   "devDependencies": {
     "tsx": "^4.19.0"
