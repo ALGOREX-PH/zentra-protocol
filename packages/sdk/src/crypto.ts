@@ -51,6 +51,11 @@ export async function buildMerkle(
   if (recipientFields.length > MERKLE_LEAVES) {
     throw new Error(`at most ${MERKLE_LEAVES} recipients`);
   }
+  if (!Number.isInteger(index) || index < 0 || index >= recipientFields.length) {
+    throw new Error(
+      `merkle index ${index} out of bounds — must be an integer in [0, ${recipientFields.length})`,
+    );
+  }
   const leaves: bigint[] = [];
   for (let i = 0; i < MERKLE_LEAVES; i++) {
     leaves.push(await H([i < recipientFields.length ? recipientFields[i] : 0n]));

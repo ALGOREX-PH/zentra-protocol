@@ -1,6 +1,7 @@
 import * as snarkjs from "snarkjs";
 import { fieldToBytes32 } from "@zentra/serialization";
 import { H, addressToField, buildMerkle } from "./crypto";
+import { ProveError } from "./errors";
 import type { Policy } from "./policy";
 
 /** Everything needed to prove one payment action. State fields come from chain. */
@@ -44,17 +45,43 @@ export async function proveAction(
   ctx: ActionContext,
   artifacts: CircuitArtifacts,
 ): Promise<ProveResult> {
+  // Cheap pre-validation mirroring the circuit's range constraints
+  // (payment_policy.circom, step 3: Num2Bits(64) bounds + LessEqThan checks),
+  // so policy violations fail fast with a readable message instead of burning
+  // witness generation on a cryptic constraint assert.
+  const MAX_U64 = (1n << 64n) - 1n;
+  if (ctx.amount < 0n || ctx.amount > MAX_U64) {
+    throw new ProveError(
+      `amount ${ctx.amount} is outside the circuit's 64-bit range [0, 2^64) — no proof can be produced`,
+    );
+  }
+  if (ctx.amount > policy.maxAmount) {
+    throw new ProveError(
+      `amount ${ctx.amount} exceeds policy "${policy.name}" per-invoice maxAmount ${policy.maxAmount} — no proof can be produced`,
+    );
+  }
+  if (ctx.prevSpent < 0n || ctx.prevSpent > MAX_U64) {
+    throw new ProveError(
+      `prevSpent ${ctx.prevSpent} is outside the circuit's 64-bit range [0, 2^64) — no proof can be produced`,
+    );
+  }
+  if (ctx.prevSpent + ctx.amount > policy.dailyLimit) {
+    throw new ProveError(
+      `prevSpent ${ctx.prevSpent} + amount ${ctx.amount} = ${ctx.prevSpent + ctx.amount} exceeds policy "${policy.name}" dailyLimit ${policy.dailyLimit} — no proof can be produced`,
+    );
+  }
+
   const recipientField = addressToField(ctx.recipient);
   const index = policy.recipientFields.findIndex((f) => f === recipientField);
   if (index === -1) {
-    throw new Error(
+    throw new ProveError(
       `recipient ${ctx.recipient} is not in the policy's approved-vendor set — no proof can be produced`,
     );
   }
 
   const merkle = await buildMerkle(policy.recipientFields, index);
   if (merkle.root !== policy.recipientRoot) {
-    throw new Error("internal error: rebuilt Merkle root does not match policy root");
+    throw new ProveError("internal error: rebuilt Merkle root does not match policy root");
   }
 
   const agentField = addressToField(ctx.agent);
@@ -88,11 +115,20 @@ export async function proveAction(
     nonce: ctx.nonce.toString(),
   };
 
-  const { proof, publicSignals } = await snarkjs.groth16.fullProve(
-    input,
-    artifacts.wasmPath,
-    artifacts.zkeyPath,
-  );
+  let proof: any;
+  let publicSignals: string[];
+  try {
+    ({ proof, publicSignals } = await snarkjs.groth16.fullProve(
+      input,
+      artifacts.wasmPath,
+      artifacts.zkeyPath,
+    ));
+  } catch (e) {
+    throw new ProveError(
+      `witness/proof generation failed — check that the circuit artifacts (${artifacts.wasmPath}, ${artifacts.zkeyPath}) exist and match the deployed verification key: ${e instanceof Error ? e.message : String(e)}`,
+      { cause: e },
+    );
+  }
 
   return {
     proof,
