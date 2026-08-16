@@ -38,6 +38,7 @@ pub enum Error {
     NullifierUsed = 6,
     InvalidAmount = 7,
     Overflow = 8,
+    MalformedProof = 9,
 }
 
 /// Authoritative on-chain state per (agent, policy commitment).
@@ -226,7 +227,7 @@ impl ZentraVerifier {
             new_spent,
             new_action_count,
         );
-        let proof = Proof::from_bytes(&proof_bytes);
+        let proof = Proof::from_bytes(&proof_bytes)?;
         if !groth16::verify(&env, vk::verification_key(&env), proof, pub_inputs)? {
             return Err(Error::InvalidProof);
         }

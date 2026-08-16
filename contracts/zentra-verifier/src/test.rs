@@ -4,11 +4,11 @@ extern crate std;
 use soroban_sdk::{
     crypto::bn254::{Bn254Fr as Fr, Bn254G1Affine as G1Affine, Bn254G2Affine as G2Affine},
     testutils::{Address as _, Ledger as _},
-    Address, BytesN, Env,
+    Address, Bytes, BytesN, Env,
 };
 
 use crate::payment_fixtures as fx;
-use crate::{effective_prior, AuthorityState, Proof, ZentraVerifier, ZentraVerifierClient};
+use crate::{effective_prior, AuthorityState, Error, Proof, ZentraVerifier, ZentraVerifierClient};
 
 fn fixture_proof(env: &Env) -> Proof {
     Proof {
@@ -47,6 +47,38 @@ fn rejects_tampered_payment_proof() {
     rows[3][31] ^= 1; // flip the low byte of `amount`
     let res = client.verify_proof(&fixture_proof(&env), &signals_from(&env, &rows));
     assert_eq!(res, false, "a proof with a tampered public signal must be rejected");
+}
+
+// ---- Proof byte parsing (malformed input returns a typed error, not a trap) ----
+
+#[test]
+fn proof_from_bytes_rejects_wrong_lengths_with_typed_error() {
+    let env = Env::default();
+    let buf = [0u8; 257];
+    for len in [0usize, 255, 257] {
+        let raw = Bytes::from_slice(&env, &buf[..len]);
+        assert!(
+            matches!(Proof::from_bytes(&raw), Err(Error::MalformedProof)),
+            "a {}-byte blob must return Error::MalformedProof, not trap",
+            len
+        );
+    }
+}
+
+#[test]
+fn garbage_256_byte_proof_parses_but_fails_verification() {
+    let env = Env::default();
+    let id = env.register(ZentraVerifier, ());
+    let client = ZentraVerifierClient::new(&env, &id);
+
+    // Structurally valid length, cryptographically garbage content.
+    let raw = Bytes::from_slice(&env, &[0xA5u8; 256]);
+    let proof = Proof::from_bytes(&raw).expect("a 256-byte blob must parse structurally");
+    let res = client.try_verify_proof(&proof, &signals_from(&env, &fx::PUB_SIGNALS));
+    assert!(
+        !matches!(res, Ok(Ok(true))),
+        "garbage proof bytes must never verify"
+    );
 }
 
 // ---- Epoch rollover (the daily-limit reset that preserves cumulative count) ----

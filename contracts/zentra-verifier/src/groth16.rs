@@ -31,15 +31,19 @@ pub struct Proof {
 impl Proof {
     /// Parse a 256-byte proof blob: a (64) || b (128) || c (64), in the same
     /// byte layout as the SDK and `@zentra/serialization` produce.
-    pub fn from_bytes(raw: &Bytes) -> Proof {
-        let a: BytesN<64> = raw.slice(0..64).try_into().expect("proof.a is 64 bytes");
-        let b: BytesN<128> = raw.slice(64..192).try_into().expect("proof.b is 128 bytes");
-        let c: BytesN<64> = raw.slice(192..256).try_into().expect("proof.c is 64 bytes");
-        Proof {
+    /// Returns `Error::MalformedProof` on any other length instead of trapping.
+    pub fn from_bytes(raw: &Bytes) -> Result<Proof, Error> {
+        if raw.len() != 256 {
+            return Err(Error::MalformedProof);
+        }
+        let a: BytesN<64> = raw.slice(0..64).try_into().map_err(|_| Error::MalformedProof)?;
+        let b: BytesN<128> = raw.slice(64..192).try_into().map_err(|_| Error::MalformedProof)?;
+        let c: BytesN<64> = raw.slice(192..256).try_into().map_err(|_| Error::MalformedProof)?;
+        Ok(Proof {
             a: G1Affine::from_bytes(a),
             b: G2Affine::from_bytes(b),
             c: G1Affine::from_bytes(c),
-        }
+        })
     }
 }
 
