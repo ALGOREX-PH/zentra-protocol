@@ -121,6 +121,19 @@ fn register_initializes_authority_state_at_current_epoch() {
 }
 
 #[test]
+fn register_rejects_zero_epoch_seconds_with_typed_error() {
+    let env = Env::default();
+    let (client, agent, commit, root) = setup(&env);
+
+    let res = client.try_register_policy(&agent, &commit, &root, &0);
+    assert_eq!(
+        res,
+        Err(Ok(Error::InvalidEpoch)),
+        "epoch_seconds == 0 must return Error::InvalidEpoch, not trap"
+    );
+}
+
+#[test]
 fn authority_state_absent_is_zero() {
     let env = Env::default();
     let (client, agent, commit, _root) = setup(&env);

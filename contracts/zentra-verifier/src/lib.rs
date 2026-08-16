@@ -39,6 +39,7 @@ pub enum Error {
     InvalidAmount = 7,
     Overflow = 8,
     MalformedProof = 9,
+    InvalidEpoch = 10,
 }
 
 /// Authoritative on-chain state per (agent, policy commitment).
@@ -100,15 +101,18 @@ pub struct ZentraVerifier;
 #[contractimpl]
 impl ZentraVerifier {
     /// Register (or update) a policy commitment + approved-recipient root for an agent.
+    /// `epoch_seconds` must be > 0 (it divides timestamps to derive epoch ids).
     pub fn register_policy(
         env: Env,
         agent: Address,
         policy_commitment: BytesN<32>,
         recipient_root: BytesN<32>,
         epoch_seconds: u64,
-    ) {
+    ) -> Result<(), Error> {
         agent.require_auth();
-        assert!(epoch_seconds > 0, "epoch_seconds must be > 0");
+        if epoch_seconds == 0 {
+            return Err(Error::InvalidEpoch);
+        }
 
         let pkey = DataKey::Policy(agent.clone(), policy_commitment.clone());
         env.storage().persistent().set(
@@ -126,6 +130,7 @@ impl ZentraVerifier {
             );
         }
         env.storage().persistent().extend_ttl(&akey, DAY_TTL, RETENTION_TTL);
+        Ok(())
     }
 
     /// Read the stored AuthorityState for (agent, policy). Returns zeroed state if absent.
