@@ -75,10 +75,12 @@ async function state() {
 }
 
 const onStatus = (e: StatusEvent) => {
-  if (e.phase === "proving") console.log(green("✓") + ` Proposing payment of ${Number(e.amount) / 1e7} XLM`);
+  if (e.phase === "proving")
+    console.log(green("✓") + ` Proposing payment of ${Number(e.amount) / 1e7} XLM`);
   if (e.phase === "proof-ready") console.log(green("✓") + " ZK Proof-of-Compliance generated");
   if (e.phase === "submitting") console.log(green("✓") + " Submitting proof to Soroban verifier");
-  if (e.phase === "released") console.log(green("✓") + " Soroban verified proof — payment released");
+  if (e.phase === "released")
+    console.log(green("✓") + " Soroban verified proof — payment released");
   if (e.phase === "blocked") console.log(red("✗") + ` Blocked: ${e.reason}`);
 };
 
@@ -96,7 +98,9 @@ async function main() {
   const { agent, vendors, attacker } = await state();
   const zentra = new Zentra({ contractId: CONTRACT, asset: ASSET, circuit: CIRCUIT, onStatus });
 
-  console.log(green("✓") + " Defining private policy (≤100 XLM/invoice, ≤500 XLM/day, 3 approved vendors)");
+  console.log(
+    green("✓") + " Defining private policy (≤100 XLM/invoice, ≤500 XLM/day, 3 approved vendors)",
+  );
   const policy = await zentra.createPolicy({
     name: "vendor-payment",
     maxAmount: 100n * D,

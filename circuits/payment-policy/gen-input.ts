@@ -46,30 +46,45 @@ const vendors = [101n, 202n, 303n];
 const recipientIdx = 1;
 const recipient = args.has("--bad-recipient") ? 999n : vendors[recipientIdx];
 
-const { root: recipientRoot, pathElements, pathIndices } = await buildMerkle(
-  vendors,
-  recipientIdx,
-);
+const { root: recipientRoot, pathElements, pathIndices } = await buildMerkle(vendors, recipientIdx);
 
 const policyCommitment = await H([maxAmount, dailyLimit, recipientRoot, assetId, policySalt]);
 const invoiceHash = await H([invoicePreimage]);
 const nullifier = await H([agentAddress, policyCommitment, contractAddress, nonce]);
 
 const input = {
-  policyCommitment, recipientRoot, amount, invoiceHash, nullifier,
-  agentAddress, assetId, contractAddress, prevEpochId, prevSpent,
-  prevActionCount, newSpent, newActionCount,
-  privateMaxAmount: maxAmount, privateDailyLimit: dailyLimit, policySalt,
-  recipient, pathElements, pathIndices, invoicePreimage, nonce,
+  policyCommitment,
+  recipientRoot,
+  amount,
+  invoiceHash,
+  nullifier,
+  agentAddress,
+  assetId,
+  contractAddress,
+  prevEpochId,
+  prevSpent,
+  prevActionCount,
+  newSpent,
+  newActionCount,
+  privateMaxAmount: maxAmount,
+  privateDailyLimit: dailyLimit,
+  policySalt,
+  recipient,
+  pathElements,
+  pathIndices,
+  invoicePreimage,
+  nonce,
 };
 
 // JSON can't hold BigInt — stringify all field values.
 const ser = JSON.stringify(
   input,
   (_k: string, v: unknown) =>
-    typeof v === "bigint" ? v.toString()
-    : Array.isArray(v) ? v.map((x) => (typeof x === "bigint" ? x.toString() : x))
-    : v,
+    typeof v === "bigint"
+      ? v.toString()
+      : Array.isArray(v)
+        ? v.map((x) => (typeof x === "bigint" ? x.toString() : x))
+        : v,
   2,
 );
 writeFileSync(outPath, ser);

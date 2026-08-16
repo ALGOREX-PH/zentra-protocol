@@ -38,9 +38,7 @@ function rustArr(name: string, bytes: Uint8Array): string {
   return `pub const ${name}: [u8; ${bytes.length}] = [${body}];`;
 }
 function rustArr2(name: string, rows: Uint8Array[]): string {
-  const inner = rows
-    .map((b) => `    [${Array.from(b).join(", ")}]`)
-    .join(",\n");
+  const inner = rows.map((b) => `    [${Array.from(b).join(", ")}]`).join(",\n");
   return `pub const ${name}: [[u8; ${rows[0].length}]; ${rows.length}] = [\n${inner},\n];`;
 }
 
