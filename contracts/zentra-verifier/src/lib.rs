@@ -19,6 +19,8 @@ mod vk;
 pub use groth16::{Proof, VerificationKey};
 
 #[cfg(test)]
+mod authorize_fixtures;
+#[cfg(test)]
 mod payment_fixtures;
 #[cfg(test)]
 mod test;
