@@ -188,7 +188,11 @@ export function effectivePrior(
   if (cur !== stored.epochId) {
     return { epochId: cur, spentInEpoch: 0n, actionCount: stored.actionCount };
   }
-  return { epochId: stored.epochId, spentInEpoch: stored.spentInEpoch, actionCount: stored.actionCount };
+  return {
+    epochId: stored.epochId,
+    spentInEpoch: stored.spentInEpoch,
+    actionCount: stored.actionCount,
+  };
 }
 
 /**
@@ -217,9 +221,7 @@ export const PUBLIC_INPUT_ORDER = [
 export type PublicInputName = (typeof PUBLIC_INPUT_ORDER)[number];
 
 /** Encode the public inputs into the ordered list of 32-byte field elements. */
-export function encodePublicInputs(
-  values: Record<PublicInputName, bigint>,
-): Uint8Array[] {
+export function encodePublicInputs(values: Record<PublicInputName, bigint>): Uint8Array[] {
   return PUBLIC_INPUT_ORDER.map((name) => {
     const v = values[name];
     if (v === undefined) throw new Error(`missing public input: ${name}`);
@@ -228,9 +230,7 @@ export function encodePublicInputs(
 }
 
 /** The same public inputs as decimal strings, in order — for snarkjs `publicSignals`. */
-export function publicInputsToDecimal(
-  values: Record<PublicInputName, bigint>,
-): string[] {
+export function publicInputsToDecimal(values: Record<PublicInputName, bigint>): string[] {
   return PUBLIC_INPUT_ORDER.map((name) => {
     const v = values[name];
     if (v === undefined) throw new Error(`missing public input: ${name}`);

@@ -22,9 +22,7 @@ import {
 } from "./index";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const golden = JSON.parse(
-  readFileSync(resolve(here, "../golden-vectors.json"), "utf8"),
-);
+const golden = JSON.parse(readFileSync(resolve(here, "../golden-vectors.json"), "utf8"));
 
 describe("field <-> bytes32", () => {
   it("matches the golden vectors (big-endian, 32 bytes)", () => {
@@ -174,10 +172,7 @@ describe("proofToBytes against the committed circuit fixtures", () => {
 
 describe("vkToBytes against the committed verification key", () => {
   const vk = JSON.parse(
-    readFileSync(
-      resolve(here, "../../../circuits/payment-policy/verification_key.json"),
-      "utf8",
-    ),
+    readFileSync(resolve(here, "../../../circuits/payment-policy/verification_key.json"), "utf8"),
   );
 
   it("emits soroban-sdk-shaped pieces (64B G1, 128B G2, 15 IC points)", () => {
