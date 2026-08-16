@@ -23,6 +23,8 @@ circuits/ptau/
 *_cpp/
 witness.wtns
 *.wtns
+# Scratch output of circuits/spike/to-soroban.ts (the verifier crate does not embed it)
+circuits/spike/spike_fixtures.rs
 
 # Keep small, source-of-truth ZK artifacts (committed explicitly):
 #   verification_key.json, proof.json, public.json, and generated vk.rs

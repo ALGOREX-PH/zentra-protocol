@@ -1,11 +1,15 @@
 // Converts snarkjs Groth16/BN254 artifacts (verification_key.json, proof.json,
-// public.json) into a Rust fixtures module the Soroban verifier test can embed.
+// public.json) into a Rust fixtures module (Phase-0 spike only — the verifier
+// crate no longer embeds this; its payment fixtures come from
+// circuits/payment-policy/to-soroban-vk.ts).
 //
 // All byte serialization comes from @zentra/serialization — the single
 // canonical codec (G1 = be(X)||be(Y), G2 = c1-before-c0 / EIP-197 imaginary
 // first, Fr = 32B BE), matching soroban-sdk v26 bn254.
 //
 // Usage: pnpm exec tsx to-soroban.ts [--out-dir <dir>]   (run from circuits/spike/)
+//   Writes spike_fixtures.rs into circuits/spike/ (gitignored scratch output)
+//   unless --out-dir says otherwise.
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -21,10 +25,7 @@ import {
 const here = dirname(fileURLToPath(import.meta.url));
 const argv = process.argv.slice(2);
 const outDirIdx = argv.indexOf("--out-dir");
-const outDir =
-  outDirIdx !== -1 && argv[outDirIdx + 1]
-    ? resolve(argv[outDirIdx + 1])
-    : resolve(here, "../../contracts/zentra-verifier/src");
+const outDir = outDirIdx !== -1 && argv[outDirIdx + 1] ? resolve(argv[outDirIdx + 1]) : here;
 
 const read = (f: string) => JSON.parse(readFileSync(resolve(here, f), "utf8"));
 
