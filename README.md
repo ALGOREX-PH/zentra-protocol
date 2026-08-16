@@ -2,7 +2,7 @@
 
 **The ZK policy layer for autonomous AI agents on Stellar.**
 
-> Let agents act. Make them prove it. -- *No proof, no payment.*
+> Let agents act. Make them prove it. -- _No proof, no payment._
 
 Zentra lets developers build AI agents that can trigger Stellar payments **only after proving, in zero knowledge, that they followed private, user-defined policies.** Before an agent moves money, it generates a Groth16 proof that the action obeys the policy -- approved vendors, spending limits, invoice requirements, replay protection -- and a Soroban smart contract verifies that proof, checks it against the agent's authoritative on-chain state, and only then releases the payment.
 
@@ -12,7 +12,7 @@ Private rules stay private. Agent actions become verifiable.
 > The live testnet dApp — Freighter wallet connect/disconnect, XLM balances, and
 > payments — plus all six belt submissions live in the
 > **[zentra-docs](https://github.com/ALGOREX-PH/zentra-docs)** repo
-> ([live app](https://zentra-docs.vercel.app/app)). *This* repo is the underlying ZK
+> ([live app](https://zentra-docs.vercel.app/app)). _This_ repo is the underlying ZK
 > protocol: the Circom circuits, the Soroban verifier, the SDK, and the CLI.
 
 ## Verified live on Stellar testnet
@@ -44,7 +44,7 @@ const policy = await zentra.createPolicy({
 });
 await zentra.commitPolicy(agent, policy);
 
-const guarded = zentra.guard(agent, policy);   // the agent can ONLY pay through Zentra
+const guarded = zentra.guard(agent, policy); // the agent can ONLY pay through Zentra
 await guarded.pay({ recipient: "GABC...", amount: 75n * 10_000_000n, invoicePreimage });
 //  proof generated -> verifier accepted -> payment released
 ```
@@ -94,7 +94,7 @@ zentra-protocol/
 
 Why a monorepo: the circuit, contract, and SDK share a byte-for-byte public-input serialization. They must version atomically, in the same commit.
 
-## Scope boundary (what Zentra is *not*)
+## Scope boundary (what Zentra is _not_)
 
 Zentra is a proof-of-compliance and settlement layer. It is **not** an identity system, an oracle, a policy author, or a key manager. It enforces the rules you give it; it does not decide whether those rules are wise, whether an invoice is real, or protect keys you leak.
 
@@ -104,4 +104,4 @@ ERC-8004 / stellar8004 agent identity + reputation from Verifiable Action Receip
 
 ---
 
-*Built on Stellar. Circom + snarkjs (Groth16, BN254) -> Soroban verifier (soroban-sdk v26 BN254 host functions) -> TypeScript SDK + CLI.*
+_Built on Stellar. Circom + snarkjs (Groth16, BN254) -> Soroban verifier (soroban-sdk v26 BN254 host functions) -> TypeScript SDK + CLI._
