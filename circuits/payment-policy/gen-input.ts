@@ -4,14 +4,22 @@
 // drift: build the vendor Merkle tree, open the policy commitment, derive the
 // nullifier, hash the invoice.
 //
-// Usage: pnpm exec tsx gen-input.ts [--bad-recipient] [--over-spend]
+// Usage: pnpm exec tsx gen-input.ts [--bad-recipient] [--over-spend] [--out <path>]
+//   --out writes the input JSON somewhere else (e.g. a temp dir, so test.sh
+//   never mutates the tracked input.example.json). Default: input.example.json.
 import { writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { H, buildMerkle } from "../../packages/sdk/src/crypto.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
-const args = new Set(process.argv.slice(2));
+const argv = process.argv.slice(2);
+const outIdx = argv.indexOf("--out");
+const outPath =
+  outIdx !== -1 && argv[outIdx + 1]
+    ? resolve(argv[outIdx + 1])
+    : resolve(here, "input.example.json");
+const args = new Set(argv);
 
 const D = 10_000_000n; // USDC has 7 decimals
 
@@ -64,8 +72,8 @@ const ser = JSON.stringify(
     : v,
   2,
 );
-writeFileSync(resolve(here, "input.example.json"), ser);
-console.log("wrote input.example.json");
+writeFileSync(outPath, ser);
+console.log(`wrote ${outPath}`);
 console.log("  recipientRoot   :", recipientRoot.toString());
 console.log("  policyCommitment:", policyCommitment.toString());
 console.log("  nullifier       :", nullifier.toString());
