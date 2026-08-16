@@ -84,7 +84,10 @@ if [ "$DEV" = 1 ]; then
 fi
 
 echo "==> witness + proof"
-node mult_js/generate_witness.js mult_js/mult.wasm input.json witness.wtns
+# snarkjs wtns calculate, not `node mult_js/generate_witness.js`: the generated
+# script is CommonJS and the workspace root package.json declares type=module,
+# so node refuses to run it. Same computation either way.
+snarkjs wtns calculate mult_js/mult.wasm input.json witness.wtns
 snarkjs groth16 prove mult_final.zkey witness.wtns proof.json public.json
 
 echo "==> off-chain sanity verify"
