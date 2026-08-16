@@ -8,6 +8,7 @@
   "files": ["src"],
   "scripts": {
     "typecheck": "tsc --noEmit",
+    "test": "vitest run",
     "zentra": "tsx src/index.ts"
   },
   "dependencies": {
