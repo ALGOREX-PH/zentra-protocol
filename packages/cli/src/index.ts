@@ -1,5 +1,9 @@
 #!/usr/bin/env tsx
 // zentra — terminal tooling for ZK-guarded agent payments on Stellar.
+//
+// The bin entry runs this TypeScript file directly, so `tsx` must be on PATH:
+// inside this workspace use `pnpm zentra` (the root provides tsx); standalone
+// installs get it from this package's devDependencies. There is no build step.
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { pathToFileURL } from "node:url";
