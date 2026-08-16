@@ -1,4 +1,5 @@
 import type { Keypair } from "@stellar/stellar-sdk";
+import { effectivePrior } from "@zentra/serialization";
 import { createPolicy, type Policy, type PolicyConfig } from "./policy";
 import { proveAction, type ActionContext, type CircuitArtifacts } from "./prover";
 import { StellarClient, TESTNET, type AuthorityState, type ConfirmedTx } from "./client";
@@ -7,9 +8,12 @@ export { createPolicy } from "./policy";
 export type { Policy, PolicyConfig } from "./policy";
 export { proveAction } from "./prover";
 export type { ActionContext, ProveResult, CircuitArtifacts } from "./prover";
-export { StellarClient, TESTNET } from "./client";
-export type { AuthorityState, ConfirmedTx } from "./client";
+export { StellarClient, TESTNET, proofToBytes } from "./client";
+export type { AuthorityState, ConfirmedTx, SubmitParams } from "./client";
 export * from "./crypto";
+export * from "./errors";
+export { effectivePrior } from "@zentra/serialization";
+export type { PriorState } from "@zentra/serialization";
 
 /** Lifecycle events the future frontend (or CLI) can render as panel state. */
 export type StatusEvent =
@@ -42,15 +46,6 @@ export interface PayRequest {
 export interface PayResult {
   txHash: string;
   nullifier: bigint;
-}
-
-/** Mirror of the contract's effective_prior (epoch rollover). */
-function effectivePrior(state: AuthorityState, epochSeconds: number, nowSeconds: number) {
-  const cur = BigInt(Math.floor(nowSeconds / epochSeconds));
-  if (cur !== state.epochId) {
-    return { epochId: cur, spent: 0n, count: state.actionCount };
-  }
-  return { epochId: state.epochId, spent: state.spentInEpoch, count: state.actionCount };
 }
 
 export class Zentra {
@@ -97,10 +92,10 @@ export class Zentra {
       recipient: req.recipient,
       amount: req.amount,
       invoicePreimage: req.invoicePreimage,
-      nonce: req.nonce ?? eff.count + 1n,
+      nonce: req.nonce ?? eff.actionCount + 1n,
       prevEpochId: eff.epochId,
-      prevSpent: eff.spent,
-      prevActionCount: eff.count,
+      prevSpent: eff.spentInEpoch,
+      prevActionCount: eff.actionCount,
     };
 
     this.onStatus({ phase: "proving", recipient: req.recipient, amount: req.amount });

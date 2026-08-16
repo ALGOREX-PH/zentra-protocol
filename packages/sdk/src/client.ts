@@ -12,8 +12,11 @@ import {
   TransactionBuilder,
   xdr,
 } from "@stellar/stellar-sdk";
-import type { ProveResult } from "./prover";
+import { proofToBytes, type Groth16Proof } from "@zentra/serialization";
+import { contractInvokeError, RpcTimeoutError } from "./errors";
 import type { Policy } from "./policy";
+
+export { proofToBytes } from "@zentra/serialization";
 
 export const TESTNET = {
   rpcUrl: "https://soroban-testnet.stellar.org",
@@ -21,30 +24,20 @@ export const TESTNET = {
 };
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
-const raced = <T>(p: Promise<T>, ms: number, label: string): Promise<T> =>
-  Promise.race([
-    p,
-    new Promise<T>((_, rej) => setTimeout(() => rej(new Error(`${label} timed out after ${ms}ms`)), ms)),
-  ]);
 
-/** decimal string -> 32-byte big-endian (raw, NO field reduction: these are Fp coordinates). */
-function be32(dec: string): Buffer {
-  let n = BigInt(dec);
-  const out = Buffer.alloc(32);
-  for (let i = 31; i >= 0; i--) {
-    out[i] = Number(n & 0xffn);
-    n >>= 8n;
+/** Race `p` against a deadline; the timer is always cleared so finished CLIs exit promptly. */
+async function raced<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      p,
+      new Promise<T>((_, rej) => {
+        timer = setTimeout(() => rej(new RpcTimeoutError(label, ms)), ms);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
   }
-  if (n !== 0n) throw new Error(`coordinate exceeds 32 bytes: ${dec}`);
-  return out;
-}
-const g1 = (p: string[]) => Buffer.concat([be32(p[0]), be32(p[1])]); // 64
-const g2 = (p: string[][]) =>
-  Buffer.concat([be32(p[0][1]), be32(p[0][0]), be32(p[1][1]), be32(p[1][0])]); // 128
-
-/** snarkjs proof -> 256-byte blob: a(64) || b(128) || c(64). */
-export function proofToBytes(proof: any): Buffer {
-  return Buffer.concat([g1(proof.pi_a), g2(proof.pi_b), g1(proof.pi_c)]);
 }
 
 export interface AuthorityState {
@@ -55,6 +48,38 @@ export interface AuthorityState {
 
 export interface ConfirmedTx {
   hash: string;
+}
+
+/**
+ * Exactly the fields `authorizeAction` submits on-chain — no fabricated
+ * placeholders required. A full `ProveResult` satisfies this structurally.
+ */
+export interface SubmitParams {
+  proof: Groth16Proof;
+  recipient: string;
+  amount: bigint;
+  invoiceHashBytes: Uint8Array;
+  nullifierBytes: Uint8Array;
+  prevEpochId: bigint;
+  prevSpent: bigint;
+  prevActionCount: bigint;
+}
+
+/** Best-effort human-readable detail from a Soroban XDR-ish value. */
+function xdrDetail(value: unknown): string {
+  const v = value as { toXDR?: (format: string) => string } | undefined;
+  if (v && typeof v.toXDR === "function") {
+    try {
+      return v.toXDR("base64");
+    } catch {
+      // fall through
+    }
+  }
+  try {
+    return JSON.stringify(value);
+  } catch {
+    return String(value);
+  }
 }
 
 export class StellarClient {
@@ -82,22 +107,30 @@ export class StellarClient {
       .build();
 
     const sim = await raced(this.server.simulateTransaction(tx), 25000, "simulate");
-    if (rpc.Api.isSimulationError(sim)) throw new Error(`simulation failed: ${sim.error}`);
+    if (rpc.Api.isSimulationError(sim)) throw contractInvokeError("simulate", sim.error);
     const prepared = rpc.assembleTransaction(tx, sim).build();
     prepared.sign(source);
 
     const sent = await raced(this.server.sendTransaction(prepared), 25000, "send");
     if (sent.status === "ERROR") {
-      throw new Error(`submit failed: ${JSON.stringify(sent.errorResult)}`);
+      throw contractInvokeError("send", xdrDetail(sent.errorResult));
     }
     let got = await raced(this.server.getTransaction(sent.hash), 15000, "getTransaction");
     for (let tries = 0; got.status === rpc.Api.GetTransactionStatus.NOT_FOUND; tries++) {
-      if (tries >= 20) throw new Error(`tx ${sent.hash} not confirmed (NOT_FOUND)`);
+      if (tries >= 20) {
+        throw contractInvokeError(
+          "confirm",
+          `tx ${sent.hash} not confirmed (NOT_FOUND after ${tries} polls) — check the transaction on the network explorer`,
+        );
+      }
       await sleep(1500);
       got = await raced(this.server.getTransaction(sent.hash), 15000, "getTransaction");
     }
     if (got.status !== rpc.Api.GetTransactionStatus.SUCCESS) {
-      throw new Error(`tx ${sent.hash} failed: ${JSON.stringify((got as any).resultXdr ?? got.status)}`);
+      throw contractInvokeError(
+        "confirm",
+        `tx ${sent.hash} failed on-chain: ${xdrDetail((got as { resultXdr?: unknown }).resultXdr ?? got.status)}`,
+      );
     }
     return { hash: sent.hash };
   }
@@ -113,7 +146,7 @@ export class StellarClient {
       .setTimeout(60)
       .build();
     const sim = await raced(this.server.simulateTransaction(tx), 25000, "simulate");
-    if (rpc.Api.isSimulationError(sim)) throw new Error(`simulation failed: ${sim.error}`);
+    if (rpc.Api.isSimulationError(sim)) throw contractInvokeError("simulate", sim.error);
     return scValToNative(sim.result!.retval);
   }
 
@@ -155,22 +188,22 @@ export class StellarClient {
   async authorizeAction(
     agent: Keypair,
     policy: Policy,
-    result: ProveResult,
+    params: SubmitParams,
     asset: string,
   ): Promise<ConfirmedTx> {
     const op = this.contract().call(
       "authorize_action",
       Address.fromString(agent.publicKey()).toScVal(),
       xdr.ScVal.scvBytes(Buffer.from(policy.commitmentBytes)),
-      xdr.ScVal.scvBytes(proofToBytes(result.proof)),
-      Address.fromString(result.recipient).toScVal(),
-      nativeToScVal(result.amount, { type: "i128" }),
+      xdr.ScVal.scvBytes(Buffer.from(proofToBytes(params.proof))),
+      Address.fromString(params.recipient).toScVal(),
+      nativeToScVal(params.amount, { type: "i128" }),
       Address.fromString(asset).toScVal(),
-      xdr.ScVal.scvBytes(Buffer.from(result.invoiceHashBytes)),
-      xdr.ScVal.scvBytes(Buffer.from(result.nullifierBytes)),
-      nativeToScVal(result.prevEpochId, { type: "u64" }),
-      nativeToScVal(result.prevSpent, { type: "i128" }),
-      nativeToScVal(result.prevActionCount, { type: "u64" }),
+      xdr.ScVal.scvBytes(Buffer.from(params.invoiceHashBytes)),
+      xdr.ScVal.scvBytes(Buffer.from(params.nullifierBytes)),
+      nativeToScVal(params.prevEpochId, { type: "u64" }),
+      nativeToScVal(params.prevSpent, { type: "i128" }),
+      nativeToScVal(params.prevActionCount, { type: "u64" }),
     );
     return this.invoke(agent, op);
   }
