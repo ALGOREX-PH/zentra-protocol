@@ -8,7 +8,7 @@ POWER=14
 POT="pot${POWER}_final.ptau"
 
 echo "==> generating witness input"
-node gen-input.mjs
+pnpm exec tsx gen-input.ts
 
 echo "==> compiling circuit (bn128)"
 circom payment_policy.circom --r1cs --wasm --sym -p bn128 -l "$ROOT/node_modules" -o .

@@ -1,23 +1,18 @@
 // Generates a consistent witness (input.example.json) for payment_policy.circom
-// using circomlibjs Poseidon — the JS twin of the circuit's circomlib Poseidon.
-// This is the reference for the SDK's policy/prover logic: build the vendor
-// Merkle tree, open the policy commitment, derive the nullifier, hash the invoice.
+// using the SDK's Poseidon/Merkle helpers (packages/sdk/src/crypto.ts) — the
+// same code the policy/prover logic uses, so the circuit and SDK can never
+// drift: build the vendor Merkle tree, open the policy commitment, derive the
+// nullifier, hash the invoice.
 //
-// Usage: node gen-input.mjs [--bad-recipient] [--over-spend]
-import { buildPoseidon } from "circomlibjs";
+// Usage: pnpm exec tsx gen-input.ts [--bad-recipient] [--over-spend]
 import { writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { H, buildMerkle } from "../../packages/sdk/src/crypto.ts";
 
 const here = dirname(fileURLToPath(import.meta.url));
 const args = new Set(process.argv.slice(2));
 
-const poseidon = await buildPoseidon();
-const F = poseidon.F;
-const H = (arr) => F.toObject(poseidon(arr.map((x) => BigInt(x))));
-
-const DEPTH = 4;
-const N = 1 << DEPTH;
 const D = 10_000_000n; // USDC has 7 decimals
 
 const maxAmount = 100n * D;
@@ -37,34 +32,20 @@ const agentAddress = 1111n;
 const assetId = 2222n;
 const contractAddress = 3333n;
 
-// Approved-vendor allowlist (field-encoded), padded to N leaves with sentinel 0.
+// Approved-vendor allowlist (field-encoded); buildMerkle pads to 16 leaves
+// with sentinel 0 exactly like the circuit expects.
 const vendors = [101n, 202n, 303n];
 const recipientIdx = 1;
 const recipient = args.has("--bad-recipient") ? 999n : vendors[recipientIdx];
 
-const leaves = [];
-for (let i = 0; i < N; i++) {
-  leaves.push(H([i < vendors.length ? vendors[i] : 0n]));
-}
+const { root: recipientRoot, pathElements, pathIndices } = await buildMerkle(
+  vendors,
+  recipientIdx,
+);
 
-let level = leaves.slice();
-const pathElements = [];
-const pathIndices = [];
-let idx = recipientIdx;
-for (let d = 0; d < DEPTH; d++) {
-  const isRight = idx & 1;
-  pathElements.push(isRight ? level[idx - 1] : level[idx + 1]);
-  pathIndices.push(BigInt(isRight));
-  const next = [];
-  for (let i = 0; i < level.length; i += 2) next.push(H([level[i], level[i + 1]]));
-  level = next;
-  idx >>= 1;
-}
-const recipientRoot = level[0];
-
-const policyCommitment = H([maxAmount, dailyLimit, recipientRoot, assetId, policySalt]);
-const invoiceHash = H([invoicePreimage]);
-const nullifier = H([agentAddress, policyCommitment, contractAddress, nonce]);
+const policyCommitment = await H([maxAmount, dailyLimit, recipientRoot, assetId, policySalt]);
+const invoiceHash = await H([invoicePreimage]);
+const nullifier = await H([agentAddress, policyCommitment, contractAddress, nonce]);
 
 const input = {
   policyCommitment, recipientRoot, amount, invoiceHash, nullifier,
@@ -77,7 +58,7 @@ const input = {
 // JSON can't hold BigInt — stringify all field values.
 const ser = JSON.stringify(
   input,
-  (_k, v) =>
+  (_k: string, v: unknown) =>
     typeof v === "bigint" ? v.toString()
     : Array.isArray(v) ? v.map((x) => (typeof x === "bigint" ? x.toString() : x))
     : v,
