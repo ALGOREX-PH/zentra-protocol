@@ -29,3 +29,49 @@
 | ZP-17 | LOW | package.jsons | No `private: true`/license/repository on the three packages; CLI shebang relies on `tsx` it doesn't depend on. → Metadata now; build step before any publish. | S |
 | ZP-18 | LOW | `payment-policy/test.sh:13,27`, `cli init` | Test harness mutates the tracked `input.example.json` in place (interrupt = dirty tree); `init` writes `"C..."` placeholders accepted without validation. → Temp files; StrKey validation on load. | S |
 | ZP-19 | LOW | `sdk/client.ts:24-28` | `raced()` never clears its timers — CLI/demo can hang up to ~25s after finishing. → `clearTimeout` in finally or `.unref()`. | S |
+
+## Improvement plan
+
+### Phase 0 — Unbreak the repo (immediately)
+- [ ] ZP-01 Declare `soroban-poseidon`, regenerate Cargo.lock, verify `cargo test --locked` from a clean checkout
+
+### Phase 1 — CI from zero (so Phase 0 can never regress)
+- [ ] ZP-07 GitHub Actions: `cargo check --locked` + `cargo test` (verifier), `tsc --noEmit` per package, `vitest run`, `cargo fmt --check` + clippy, prettier check
+- [ ] Document (or script in CI) that SDK tests require `circuits/payment-policy/build.sh` artifacts
+
+### Phase 2 — ZK workflow integrity
+- [ ] ZP-02 Hash-pinned Hermez ptau; rebuilt-VK-matches-`vk.rs` check; one-zkey-per-deployment documented
+- [ ] ZP-08 Rust golden-vector test against `golden-vectors.json` (or fix the false claim)
+- [ ] ZP-15 Delete stale snapshots; add a real tampered-proof-bytes test
+- [ ] ZP-16 Retire/redirect the spike fixture generator
+
+### Phase 3 — Correctness & robustness
+- [ ] ZP-04 `Proof::from_bytes` → `Result` + malformed-input tests
+- [ ] ZP-05 `Error::InvalidEpoch` instead of `assert!`
+- [ ] ZP-10 Demo verdicts matched on contract error codes; Panel C lie derived from real state
+- [ ] ZP-13 Cheap pre-validation before witness generation; Merkle index bounds
+- [ ] ZP-12 `ZentraError` hierarchy + contract error-code mapping
+- [ ] ZP-11 `SubmitParams` type for `authorizeAction`
+- [ ] ZP-19 Clear/unref the race timers
+
+### Phase 4 — Deduplication
+- [ ] ZP-06 Point serialization + `effectivePrior` live only in `@zentra/serialization`; .mjs scripts and CLI import it
+
+### Phase 5 — Test debt
+- [ ] ZP-03 `authorize_action` suite: real-address fixture, settlement assertions, every error path
+- [ ] ZP-09 `proofToBytes` byte-for-byte vs committed fixtures; `effectivePrior` mirrors the Rust cases; CLI smoke tests
+- [ ] Circuit matrix: over-max amount, wrong salt/commitment, wrong assetId, non-boolean pathIndices, wrong newSpent transition, boundary equalities, constraint-count regression check
+- [ ] Serialization: `publicInputsToDecimal`, negative bigints, near-modulus vectors
+
+### Phase 6 — Polish
+- [ ] ZP-14 README contract id + stale Poseidon roadmap notes · ZP-17 package metadata · ZP-18 temp-file test harness + StrKey validation
+
+## What NOT to change
+
+- Circom comparator hygiene (`Num2Bits` range-binding before `LessEqThan`, constrained pathIndices booleanity) — the two classic soundness bugs, both avoided.
+- Proofs bound to authoritative state: `effective_prior` epoch rollover, single-use nullifiers, checked arithmetic, writes only after verification.
+- `@zentra/serialization` as an explicit canonical codec with golden vectors and a documented `PUBLIC_INPUT_ORDER` — strengthen it (ZP-06), don't dilute it.
+- Generated Rust marked `@generated` with generators committed alongside; clean git hygiene (no target/wasm/zkey/ptau tracked, `.demo-state.json` ignored, Cargo.lock committed, tuned wasm release profile).
+- Tamper-negative tests on both sides; SDK tests prove with real Stellar addresses against the real circuit.
+- Docs that explain *why* (field-reduction rationale, constraint-to-threat mapping) and a README with an honest scope boundary.
+
