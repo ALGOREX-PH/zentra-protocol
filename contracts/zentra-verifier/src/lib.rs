@@ -67,9 +67,9 @@ pub enum DataKey {
     Nullifier(BytesN<32>),
 }
 
-/// Emitted on every successful authorization. The nullifier is the unique
-/// action id. (A CAP-0075 Poseidon actionHash over these fields is a planned
-/// enhancement; the nullifier already uniquely identifies the action.)
+/// Emitted on every successful authorization. `action_id` is the CAP-0075
+/// Poseidon hash of the action's public fields (computed on-chain in
+/// `encoding::action_id`); the nullifier also uniquely identifies the action.
 #[contractevent(topics = ["receipt"])]
 pub struct ActionReceipt {
     pub agent: Address,

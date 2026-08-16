@@ -23,7 +23,7 @@ The 3-panel demo runs end-to-end against testnet:
 - **Panel B (compromised agent):** prompt injection to pay an attacker -> **no proof could be produced** (recipient not in the Merkle root)
 - **Panel C (over-spend):** agent lies about prior spend -> **contract's AuthorityState check rejected it; no money moved**
 
-Verifier contract: `CDLZFP6444H4MR5S4WHCHXOBN5DBDAXJG3BDHZDGCJEHFZ7XMSU3RIXD`
+Verifier contract: `CDS6BURFWRTU6FXN6IXOSKOIAZ4PX7XJ6U5FSI345XX3O5FGP7U3K7VY`
 
 ## Why this is real (not security theater)
 
@@ -35,7 +35,7 @@ Verifier contract: `CDLZFP6444H4MR5S4WHCHXOBN5DBDAXJG3BDHZDGCJEHFZ7XMSU3RIXD`
 ```ts
 import { Zentra } from "@zentra/sdk";
 
-const zentra = new Zentra({ contractId: "CDLZ...", asset: usdcSac, circuit });
+const zentra = new Zentra({ contractId: "CDS6...", asset: usdcSac, circuit });
 const policy = await zentra.createPolicy({
   name: "vendor-payment",
   maxAmount: 100n * 10_000_000n,
@@ -60,6 +60,10 @@ cd contracts/zentra-verifier && cargo test && cd -
 # 3. run the live testnet demo (funds throwaway accounts via friendbot)
 pnpm --filter @zentra/example-vendor-payment-agent demo
 ```
+
+### Trusted setup is dev-grade — one zkey per deployment
+
+`build.sh` uses the public Hermez/iden3 powers-of-tau (hash-pinned and cached in `circuits/ptau/`) for phase 1, but phase 2 is a single local zkey contribution: **these keys are for development only** — production requires a real multi-party phase-2 ceremony. A Groth16 verification key is valid for exactly one zkey, and every rebuild makes a new contribution, so the committed `contracts/zentra-verifier/src/vk.rs` (and the deployed verifier) correspond to one specific `payment_policy.zkey`. After any rebuild, run `bash circuits/payment-policy/check-vk.sh`: it warns when your local proving artifacts no longer match the committed/deployed verifier (proofs would fail on-chain with `InvalidProof`); realign by regenerating `vk.rs` via `to-soroban-vk.ts`, committing it, and redeploying the contract.
 
 ## Architecture
 
@@ -96,7 +100,7 @@ Zentra is a proof-of-compliance and settlement layer. It is **not** an identity 
 
 ## Roadmap (articulated, not in the v0.1 MVP)
 
-ERC-8004 / stellar8004 agent identity + reputation from Verifiable Action Receipts; ERC-7715 scoped wallet permissions; composable / multi-policy authority; non-payment actions (contract calls, treasury, API payments); on-chain CAP-0075 Poseidon receipt hashing; Noir / RISC Zero proof backends.
+ERC-8004 / stellar8004 agent identity + reputation from Verifiable Action Receipts; ERC-7715 scoped wallet permissions; composable / multi-policy authority; non-payment actions (contract calls, treasury, API payments); Noir / RISC Zero proof backends. (On-chain CAP-0075 Poseidon receipt hashing already ships: the verifier computes and emits the Poseidon `action_id` on every receipt.)
 
 ---
 
