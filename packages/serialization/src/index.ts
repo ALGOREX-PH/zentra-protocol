@@ -67,6 +67,130 @@ export function toHex(bytes: Uint8Array): string {
   return s;
 }
 
+// ---------------------------------------------------------------------------
+// Groth16/BN254 point serialization (soroban-sdk bn254 byte layout)
+//
+//   G1 (64 bytes):  be(X) || be(Y)
+//   G2 (128 bytes): be(X.c1) || be(X.c0) || be(Y.c1) || be(Y.c0)
+//                   (imaginary component first — EIP-197 ordering)
+//   Fr (32 bytes):  big-endian
+//
+// snarkjs stores G2 coordinates as [[x_c0, x_c1], [y_c0, y_c1], ...], so each
+// pair is swapped on serialization.
+// ---------------------------------------------------------------------------
+
+/**
+ * Decimal string / bigint -> 32-byte big-endian, RAW (no field reduction):
+ * G1/G2 coordinates are BN254 base-field (Fp) values, which can exceed Fr.
+ * Strict: rejects negative values and values wider than 32 bytes.
+ */
+export function be32(value: bigint | string): Uint8Array {
+  let n = typeof value === "string" ? BigInt(value) : value;
+  if (n < 0n) throw new Error(`be32: negative value: ${value}`);
+  const out = new Uint8Array(32);
+  for (let i = 31; i >= 0; i--) {
+    out[i] = Number(n & 0xffn);
+    n >>= 8n;
+  }
+  if (n !== 0n) throw new Error(`be32: value exceeds 32 bytes: ${value}`);
+  return out;
+}
+
+/** Concatenate byte arrays into one Uint8Array. */
+export function concatBytes(...arrays: Uint8Array[]): Uint8Array {
+  const out = new Uint8Array(arrays.reduce((s, a) => s + a.length, 0));
+  let off = 0;
+  for (const a of arrays) {
+    out.set(a, off);
+    off += a.length;
+  }
+  return out;
+}
+
+/** snarkjs G1 point ["x", "y", "1"] -> 64 bytes: be(X) || be(Y). */
+export function g1ToBytes(p: readonly string[]): Uint8Array {
+  return concatBytes(be32(p[0]), be32(p[1]));
+}
+
+/**
+ * snarkjs G2 point [["x_c0","x_c1"], ["y_c0","y_c1"], ...] -> 128 bytes:
+ * be(X.c1) || be(X.c0) || be(Y.c1) || be(Y.c0).
+ */
+export function g2ToBytes(p: readonly (readonly string[])[]): Uint8Array {
+  return concatBytes(be32(p[0][1]), be32(p[0][0]), be32(p[1][1]), be32(p[1][0]));
+}
+
+/** snarkjs Groth16 proof object (the parts this codec serializes). */
+export interface Groth16Proof {
+  pi_a: string[];
+  pi_b: string[][];
+  pi_c: string[];
+}
+
+/** snarkjs proof -> 256-byte blob: a(64) || b(128) || c(64). */
+export function proofToBytes(proof: Groth16Proof): Uint8Array {
+  return concatBytes(g1ToBytes(proof.pi_a), g2ToBytes(proof.pi_b), g1ToBytes(proof.pi_c));
+}
+
+/** snarkjs verification_key.json (the parts this codec serializes). */
+export interface Groth16VerificationKey {
+  vk_alpha_1: string[];
+  vk_beta_2: string[][];
+  vk_gamma_2: string[][];
+  vk_delta_2: string[][];
+  IC: string[][];
+}
+
+export interface VerificationKeyBytes {
+  alpha: Uint8Array; // G1, 64 bytes
+  beta: Uint8Array; // G2, 128 bytes
+  gamma: Uint8Array; // G2, 128 bytes
+  delta: Uint8Array; // G2, 128 bytes
+  ic: Uint8Array[]; // G1 x (nPublic + 1), 64 bytes each
+}
+
+/** snarkjs verification key -> soroban-sdk bn254 byte form, piecewise. */
+export function vkToBytes(vk: Groth16VerificationKey): VerificationKeyBytes {
+  return {
+    alpha: g1ToBytes(vk.vk_alpha_1),
+    beta: g2ToBytes(vk.vk_beta_2),
+    gamma: g2ToBytes(vk.vk_gamma_2),
+    delta: g2ToBytes(vk.vk_delta_2),
+    ic: vk.IC.map(g1ToBytes),
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Epoch rollover
+// ---------------------------------------------------------------------------
+
+/** Prior AuthorityState shape shared with the contract (epoch accounting). */
+export interface PriorState {
+  epochId: bigint;
+  spentInEpoch: bigint;
+  actionCount: bigint;
+}
+
+/**
+ * Mirror of the contract's `effective_prior` (contracts/zentra-verifier/src/lib.rs):
+ * entering a new epoch resets the in-epoch spend to zero while preserving the
+ * cumulative action count.
+ */
+export function effectivePrior(
+  stored: PriorState,
+  epochSeconds: number | bigint,
+  nowSeconds: number | bigint,
+): PriorState {
+  const secs = BigInt(epochSeconds);
+  if (secs <= 0n) throw new Error("effectivePrior: epochSeconds must be > 0");
+  const now = typeof nowSeconds === "number" ? BigInt(Math.floor(nowSeconds)) : nowSeconds;
+  const cur = now / secs;
+  if (cur !== stored.epochId) {
+    return { epochId: cur, spentInEpoch: 0n, actionCount: stored.actionCount };
+  }
+  return { epochId: stored.epochId, spentInEpoch: stored.spentInEpoch, actionCount: stored.actionCount };
+}
+
 /**
  * The canonical order of the proof's public inputs. The circuit declares its
  * public signals in exactly this order, and the contract reconstructs the same
