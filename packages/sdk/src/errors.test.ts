@@ -27,7 +27,7 @@ describe("contract error mapping (contracts/zentra-verifier/src/lib.rs Error enu
 
   it("parses Error(Contract, #n) out of a Soroban diagnostic string", () => {
     const detail =
-      'host invocation failed: HostError: Error(Contract, #6)\nDebugInfo not available';
+      "host invocation failed: HostError: Error(Contract, #6)\nDebugInfo not available";
     expect(parseContractErrorCode(detail)).toBe(6);
     expect(parseContractErrorCode("transaction simulation failed: no luck")).toBeUndefined();
   });
