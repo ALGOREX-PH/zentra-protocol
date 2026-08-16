@@ -12,6 +12,10 @@ doctest = false
 [dependencies]
 # hazmat-address: Address::to_payload() to derive a field element from an address.
 soroban-sdk = { version = "26.1.0", features = ["hazmat-address"] }
+# CAP-0075 Poseidon (circomlib-compatible BN254 params). Pinned to the v26.0.0
+# rev the deployed contract was built with; the test snapshots encode action ids
+# derived from these exact parameters.
+soroban-poseidon = { git = "https://github.com/stellar/rs-soroban-poseidon", rev = "b4bf706b7d0d602f9389280d259c0fb9f19983bf" }
 
 [dev-dependencies]
 soroban-sdk = { version = "26.1.0", features = ["testutils", "hazmat-address"] }
