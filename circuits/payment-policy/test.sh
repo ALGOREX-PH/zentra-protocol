@@ -2,16 +2,19 @@
 # Circuit behavior tests: a valid witness must compute; policy-violating inputs
 # must FAIL witness generation (the proof can't be produced). Requires build.sh
 # to have produced payment_policy_js/payment_policy.wasm first.
+# Case inputs are written to a temp dir — the tracked input.example.json is
+# never touched, so an interrupted run leaves the tree clean.
 set -uo pipefail
 cd "$(dirname "$0")"
 WASM=payment_policy_js/payment_policy.wasm
-TMP=witness_neg.wtns
+TMP="$(mktemp -d ./test-input-XXXXXX)"
+trap 'rm -rf "$TMP"' EXIT
 pass=0; fail=0
 
 check() { # $1 = expected ok|err ; rest = gen-input args
   local expected="$1"; shift
-  node gen-input.mjs "$@" >/dev/null
-  if snarkjs wtns calculate "$WASM" input.example.json "$TMP" >/dev/null 2>&1; then got=ok; else got=err; fi
+  pnpm exec tsx gen-input.ts --out "$TMP/input.json" "$@" >/dev/null
+  if snarkjs wtns calculate "$WASM" "$TMP/input.json" "$TMP/witness.wtns" >/dev/null 2>&1; then got=ok; else got=err; fi
   if [ "$got" = "$expected" ]; then
     echo "PASS (expected $expected): gen-input $*"; pass=$((pass+1))
   else
@@ -23,8 +26,6 @@ check ok                     # valid payment within policy
 check err --bad-recipient    # Panel B: recipient not in approved Merkle root
 check err --over-spend       # prevSpent+amount exceeds the private daily limit
 
-rm -f "$TMP"
-node gen-input.mjs >/dev/null  # restore the valid input.example.json
 echo "----"
 echo "passed=$pass failed=$fail"
 [ "$fail" -eq 0 ]

@@ -1,6 +1,13 @@
 {
   "name": "@zentra/serialization",
   "version": "0.0.1",
+  "private": true,
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ALGOREX-PH/zentra-protocol.git",
+    "directory": "packages/serialization"
+  },
   "type": "module",
   "description": "Canonical byte-exact public-input codec shared by the Zentra circuit, contract, and SDK",
   "exports": {
@@ -8,8 +15,11 @@
   },
   "main": "./src/index.ts",
   "types": "./src/index.ts",
-  "files": ["src"],
+  "files": [
+    "src"
+  ],
   "scripts": {
+    "typecheck": "tsc --noEmit",
     "test": "vitest run"
   }
 }

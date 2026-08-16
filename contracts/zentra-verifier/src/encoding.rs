@@ -2,11 +2,11 @@
 //! Field values come from the contract's own arguments / stored state, so the
 //! proof is bound to the real recipient, asset, agent, and contract.
 
+use soroban_poseidon::poseidon_hash;
 use soroban_sdk::{
     address_payload::AddressPayload, crypto::bn254::Bn254Fr as Fr, Address, Bytes, BytesN, Env,
     Vec, U256,
 };
-use soroban_poseidon::poseidon_hash;
 
 /// A 32-byte value that is already a valid field element (< r): Poseidon outputs
 /// such as the policy commitment, recipient root, invoice hash, and nullifier.
@@ -120,4 +120,73 @@ pub fn action_id(
     );
     let h: U256 = poseidon_hash::<6, Fr>(env, &inputs);
     h.to_be_bytes().try_into().expect("32-byte poseidon output")
+}
+
+/// Golden-vector cross-check against `@zentra/serialization`
+/// (packages/serialization/golden-vectors.json, also asserted by the TS test),
+/// so the Rust and TypeScript field-element encodings agree byte-for-byte.
+#[cfg(test)]
+mod golden_vectors {
+    extern crate std;
+    use std::vec::Vec as StdVec;
+
+    use super::{fr_from_field_bytes, fr_from_i128, fr_from_u64};
+    use soroban_sdk::{BytesN, Env};
+
+    const GOLDEN_JSON: &str = include_str!("../../../packages/serialization/golden-vectors.json");
+
+    /// Extract the (dec, bytes32) pairs from the `fieldToBytes32` array.
+    fn vectors() -> StdVec<(u64, [u8; 32])> {
+        let mut out = StdVec::new();
+        let mut rest = GOLDEN_JSON;
+        while let Some(i) = rest.find("\"dec\": \"") {
+            rest = &rest[i + 8..];
+            let end = rest.find('"').expect("closing quote after dec value");
+            let dec: u64 = rest[..end].parse().expect("decimal vector value");
+            let j = rest.find("\"hex\": \"").expect("hex value after dec value");
+            rest = &rest[j + 8..];
+            let hend = rest.find('"').expect("closing quote after hex value");
+            let hex = &rest[..hend];
+            assert_eq!(hex.len(), 64, "hex vector must encode 32 bytes");
+            let mut bytes = [0u8; 32];
+            for (k, b) in bytes.iter_mut().enumerate() {
+                *b = u8::from_str_radix(&hex[2 * k..2 * k + 2], 16).expect("hex byte");
+            }
+            out.push((dec, bytes));
+        }
+        out
+    }
+
+    #[test]
+    fn field_encodings_match_serialization_golden_vectors() {
+        let env = Env::default();
+        let vecs = vectors();
+        assert_eq!(
+            vecs.len(),
+            5,
+            "golden-vectors.json must contain 5 fieldToBytes32 entries"
+        );
+        for (dec, expected) in vecs {
+            let exp = BytesN::from_array(&env, &expected);
+            assert_eq!(
+                fr_from_u64(&env, dec).to_bytes(),
+                exp,
+                "fr_from_u64({}) must match the golden vector",
+                dec
+            );
+            assert_eq!(
+                fr_from_i128(&env, dec as i128).to_bytes(),
+                exp,
+                "fr_from_i128({}) must match the golden vector",
+                dec
+            );
+            // All vector values are < r, so field-bytes round-trip exactly.
+            assert_eq!(
+                fr_from_field_bytes(&exp).to_bytes(),
+                exp,
+                "fr_from_field_bytes must round-trip the golden vector for {}",
+                dec
+            );
+        }
+    }
 }

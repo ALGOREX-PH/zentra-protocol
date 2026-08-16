@@ -44,12 +44,14 @@ export interface MerkleProof {
  * 16 leaves with a sentinel), and return the root plus the inclusion path for
  * `index`. leaf_i = Poseidon(field_i).
  */
-export async function buildMerkle(
-  recipientFields: bigint[],
-  index: number,
-): Promise<MerkleProof> {
+export async function buildMerkle(recipientFields: bigint[], index: number): Promise<MerkleProof> {
   if (recipientFields.length > MERKLE_LEAVES) {
     throw new Error(`at most ${MERKLE_LEAVES} recipients`);
+  }
+  if (!Number.isInteger(index) || index < 0 || index >= recipientFields.length) {
+    throw new Error(
+      `merkle index ${index} out of bounds — must be an integer in [0, ${recipientFields.length})`,
+    );
   }
   const leaves: bigint[] = [];
   for (let i = 0; i < MERKLE_LEAVES; i++) {

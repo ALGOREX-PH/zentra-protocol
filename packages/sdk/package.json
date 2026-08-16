@@ -1,6 +1,13 @@
 {
   "name": "@zentra/sdk",
   "version": "0.0.1",
+  "private": true,
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ALGOREX-PH/zentra-protocol.git",
+    "directory": "packages/sdk"
+  },
   "type": "module",
   "description": "TypeScript SDK for building ZK-guarded AI payment agents on Stellar",
   "exports": {
@@ -8,8 +15,11 @@
   },
   "main": "./src/index.ts",
   "types": "./src/index.ts",
-  "files": ["src"],
+  "files": [
+    "src"
+  ],
   "scripts": {
+    "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
   "dependencies": {

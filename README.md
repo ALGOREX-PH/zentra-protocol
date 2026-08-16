@@ -2,7 +2,7 @@
 
 **The ZK policy layer for autonomous AI agents on Stellar.**
 
-> Let agents act. Make them prove it. -- *No proof, no payment.*
+> Let agents act. Make them prove it. -- _No proof, no payment._
 
 Zentra lets developers build AI agents that can trigger Stellar payments **only after proving, in zero knowledge, that they followed private, user-defined policies.** Before an agent moves money, it generates a Groth16 proof that the action obeys the policy -- approved vendors, spending limits, invoice requirements, replay protection -- and a Soroban smart contract verifies that proof, checks it against the agent's authoritative on-chain state, and only then releases the payment.
 
@@ -12,7 +12,7 @@ Private rules stay private. Agent actions become verifiable.
 > The live testnet dApp — Freighter wallet connect/disconnect, XLM balances, and
 > payments — plus all six belt submissions live in the
 > **[zentra-docs](https://github.com/ALGOREX-PH/zentra-docs)** repo
-> ([live app](https://zentra-docs.vercel.app/app)). *This* repo is the underlying ZK
+> ([live app](https://zentra-docs.vercel.app/app)). _This_ repo is the underlying ZK
 > protocol: the Circom circuits, the Soroban verifier, the SDK, and the CLI.
 
 ## Verified live on Stellar testnet
@@ -35,7 +35,7 @@ Verifier contract: `CDS6BURFWRTU6FXN6IXOSKOIAZ4PX7XJ6U5FSI345XX3O5FGP7U3K7VY`
 ```ts
 import { Zentra } from "@zentra/sdk";
 
-const zentra = new Zentra({ contractId: "CDLZ...", asset: usdcSac, circuit });
+const zentra = new Zentra({ contractId: "CDS6...", asset: usdcSac, circuit });
 const policy = await zentra.createPolicy({
   name: "vendor-payment",
   maxAmount: 100n * 10_000_000n,
@@ -44,7 +44,7 @@ const policy = await zentra.createPolicy({
 });
 await zentra.commitPolicy(agent, policy);
 
-const guarded = zentra.guard(agent, policy);   // the agent can ONLY pay through Zentra
+const guarded = zentra.guard(agent, policy); // the agent can ONLY pay through Zentra
 await guarded.pay({ recipient: "GABC...", amount: 75n * 10_000_000n, invoicePreimage });
 //  proof generated -> verifier accepted -> payment released
 ```
@@ -60,6 +60,10 @@ cd contracts/zentra-verifier && cargo test && cd -
 # 3. run the live testnet demo (funds throwaway accounts via friendbot)
 pnpm --filter @zentra/example-vendor-payment-agent demo
 ```
+
+### Trusted setup is dev-grade — one zkey per deployment
+
+`build.sh` uses the public Hermez/iden3 powers-of-tau (hash-pinned and cached in `circuits/ptau/`) for phase 1, but phase 2 is a single local zkey contribution: **these keys are for development only** — production requires a real multi-party phase-2 ceremony. A Groth16 verification key is valid for exactly one zkey, and every rebuild makes a new contribution, so the committed `contracts/zentra-verifier/src/vk.rs` (and the deployed verifier) correspond to one specific `payment_policy.zkey`. After any rebuild, run `bash circuits/payment-policy/check-vk.sh`: it warns when your local proving artifacts no longer match the committed/deployed verifier (proofs would fail on-chain with `InvalidProof`); realign by regenerating `vk.rs` via `to-soroban-vk.ts`, committing it, and redeploying the contract.
 
 ## Architecture
 
@@ -90,14 +94,14 @@ zentra-protocol/
 
 Why a monorepo: the circuit, contract, and SDK share a byte-for-byte public-input serialization. They must version atomically, in the same commit.
 
-## Scope boundary (what Zentra is *not*)
+## Scope boundary (what Zentra is _not_)
 
 Zentra is a proof-of-compliance and settlement layer. It is **not** an identity system, an oracle, a policy author, or a key manager. It enforces the rules you give it; it does not decide whether those rules are wise, whether an invoice is real, or protect keys you leak.
 
 ## Roadmap (articulated, not in the v0.1 MVP)
 
-ERC-8004 / stellar8004 agent identity + reputation from Verifiable Action Receipts; ERC-7715 scoped wallet permissions; composable / multi-policy authority; non-payment actions (contract calls, treasury, API payments); on-chain CAP-0075 Poseidon receipt hashing; Noir / RISC Zero proof backends.
+ERC-8004 / stellar8004 agent identity + reputation from Verifiable Action Receipts; ERC-7715 scoped wallet permissions; composable / multi-policy authority; non-payment actions (contract calls, treasury, API payments); Noir / RISC Zero proof backends. (On-chain CAP-0075 Poseidon receipt hashing already ships: the verifier computes and emits the Poseidon `action_id` on every receipt.)
 
 ---
 
-*Built on Stellar. Circom + snarkjs (Groth16, BN254) -> Soroban verifier (soroban-sdk v26 BN254 host functions) -> TypeScript SDK + CLI.*
+_Built on Stellar. Circom + snarkjs (Groth16, BN254) -> Soroban verifier (soroban-sdk v26 BN254 host functions) -> TypeScript SDK + CLI._
