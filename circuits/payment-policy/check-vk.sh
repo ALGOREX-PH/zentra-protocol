@@ -2,7 +2,8 @@
 # VK-drift check: regenerate vk.rs from the local circuit artifacts
 # (verification_key.json + proof.json + public.json) into a temp dir and diff
 # it against the committed contracts/zentra-verifier/src/vk.rs, ignoring the
-# single @generated header line.
+# single @generated header line and formatting (the committed file is
+# rustfmt-formatted; the generator emits single-line arrays).
 #
 # Drift means the local payment_policy.zkey does not correspond to the
 # committed (and presumably deployed) verifier: proofs generated locally will
@@ -24,7 +25,11 @@ TMP="$(mktemp -d ./vk-check-XXXXXX)"
 trap 'rm -rf "$TMP"' EXIT
 pnpm exec tsx to-soroban-vk.ts --out-dir "$TMP" >/dev/null
 
-if diff <(tail -n +2 "$TMP/vk.rs") <(tail -n +2 "$COMMITTED") >/dev/null; then
+# Strip whitespace and trailing array commas before diffing so rustfmt reflow
+# of the committed file (line wrapping, trailing commas) never reads as key
+# drift; every byte value, separator, bracket, and identifier is still compared.
+normalize() { tail -n +2 "$1" | tr -d '[:space:]' | sed 's/,\]/]/g'; }
+if diff <(normalize "$TMP/vk.rs") <(normalize "$COMMITTED") >/dev/null; then
   echo "==> VK check OK: local verification_key.json matches the committed vk.rs"
 else
   cat >&2 <<'EOF'
