@@ -13,6 +13,8 @@ build/
 *.tsbuildinfo
 
 # Circom / snarkjs generated artifacts (regenerate via build scripts)
+# circuits/ptau/ holds the downloaded, hash-pinned Hermez powers-of-tau cache
+circuits/ptau/
 *.ptau
 *.zkey
 *.r1cs
