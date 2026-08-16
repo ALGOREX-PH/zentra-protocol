@@ -35,9 +35,28 @@ const readJson = (p: string) => JSON.parse(readFileSync(p, "utf8"));
 const writeJson = (p: string, v: unknown) =>
   writeFileSync(p, JSON.stringify(v, (_k, x) => (typeof x === "bigint" ? x.toString() : x), 2));
 
+// StrKey-shape validation for addresses read from config/policy files, so the
+// literal "C..." placeholders `zentra init` scaffolds (or any typo) fail fast
+// with the file and field named, instead of surfacing as a cryptic XDR error.
+const STRKEY_SHAPE = {
+  C: /^C[A-Z2-7]{55}$/, // contract address
+  G: /^G[A-Z2-7]{55}$/, // account address
+} as const;
+function assertStrKey(file: string, field: string, value: unknown, kind: keyof typeof STRKEY_SHAPE) {
+  if (typeof value !== "string" || !STRKEY_SHAPE[kind].test(value)) {
+    die(
+      `${file}: "${field}" is ${JSON.stringify(value)} — not a ${kind}... Stellar address ` +
+        `("${kind}" + 55 base32 chars [A-Z2-7]). Edit the file and fill in the real value.`,
+    );
+  }
+}
+
 function loadConfig() {
   if (!existsSync(CONFIG)) die(`no ${CONFIG} — run "zentra init" first`);
-  return readJson(CONFIG);
+  const cfg = readJson(CONFIG);
+  assertStrKey(CONFIG, "contractId", cfg.contractId, "C");
+  assertStrKey(CONFIG, "asset", cfg.asset, "C");
+  return cfg;
 }
 function agentKeypair(): Keypair {
   const s = process.env.ZENTRA_AGENT_SECRET;
@@ -47,6 +66,10 @@ function agentKeypair(): Keypair {
 // Rebuild the full Policy deterministically from its saved config (salt included).
 export async function policyFromFile(file: string): Promise<Policy> {
   const p = readJson(file);
+  assertStrKey(file, "asset", p.asset, "C");
+  (p.approvedRecipients ?? []).forEach((r: unknown, i: number) =>
+    assertStrKey(file, `approvedRecipients[${i}]`, r, "G"),
+  );
   return createPolicy({
     name: p.name,
     asset: p.asset,
@@ -141,6 +164,8 @@ policy
     head();
     const cfg = loadConfig();
     const recipients: string[] = readJson(opts.allowlist);
+    recipients.forEach((r, i) => assertStrKey(opts.allowlist, `[${i}]`, r, "G"));
+    if (opts.asset) assertStrKey("--asset", "asset", opts.asset, "C");
     const p = await createPolicy({
       name,
       asset: opts.asset ?? cfg.asset,
