@@ -22,6 +22,8 @@ export class ZentraError extends Error {
  *   NullifierUsed         = 6,
  *   InvalidAmount         = 7,
  *   Overflow              = 8,
+ *   MalformedProof        = 9,
+ *   InvalidEpoch          = 10,
  */
 export const CONTRACT_ERROR_NAMES: Record<number, string> = {
   1: "MalformedVerifyingKey",
@@ -32,6 +34,8 @@ export const CONTRACT_ERROR_NAMES: Record<number, string> = {
   6: "NullifierUsed",
   7: "InvalidAmount",
   8: "Overflow",
+  9: "MalformedProof",
+  10: "InvalidEpoch",
 };
 
 /** What the agent should do about each contract error. */
@@ -44,6 +48,8 @@ const CONTRACT_ERROR_HINTS: Record<number, string> = {
   6: "this action's nullifier was already consumed — each proof settles once; generate a new proof with a fresh nonce",
   7: "amount must be positive",
   8: "spend or action-count arithmetic overflowed",
+  9: "the proof bytes are malformed — expected 256 bytes (A:G1 || B:G2 || C:G1); re-serialize with proofToBytes",
+  10: "epoch_seconds must be > 0 when registering a policy",
 };
 
 /**

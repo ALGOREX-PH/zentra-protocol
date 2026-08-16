@@ -10,7 +10,7 @@ import {
 } from "./errors";
 
 describe("contract error mapping (contracts/zentra-verifier/src/lib.rs Error enum)", () => {
-  it("maps every code 1..8 to the verifier's error name", () => {
+  it("maps every code 1..10 to the verifier's error name", () => {
     expect(CONTRACT_ERROR_NAMES).toEqual({
       1: "MalformedVerifyingKey",
       2: "PolicyNotFound",
@@ -20,6 +20,8 @@ describe("contract error mapping (contracts/zentra-verifier/src/lib.rs Error enu
       6: "NullifierUsed",
       7: "InvalidAmount",
       8: "Overflow",
+      9: "MalformedProof",
+      10: "InvalidEpoch",
     });
   });
 
