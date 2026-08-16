@@ -1,0 +1,21 @@
+# Lockfiles
+pnpm-lock.yaml
+
+# Rust build output
+target/
+
+# Circom / snarkjs generated artifacts
+*.wasm
+*.ptau
+*.zkey
+*.r1cs
+*.sym
+*.wtns
+*_js/
+*_cpp/
+circuits/**/proof.json
+circuits/**/public.json
+circuits/**/verification_key.json
+
+# Local state
+.demo-state.json
